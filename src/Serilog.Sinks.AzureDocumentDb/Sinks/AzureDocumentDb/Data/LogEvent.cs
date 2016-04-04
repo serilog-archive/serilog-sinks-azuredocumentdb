@@ -33,9 +33,9 @@ namespace Serilog.Sinks.AzureDocumentDb.Data
         /// <summary>
         /// Construct a new <see cref="LogEvent"/>.
         /// </summary>
-        public LogEvent(Events.LogEvent logEvent, string renderedMessage)
+        public LogEvent(Events.LogEvent logEvent, string renderedMessage, bool storeTimestampInUtc)
         {
-            Timestamp = logEvent.Timestamp;
+            Timestamp = storeTimestampInUtc ? logEvent.Timestamp.ToUniversalTime() : logEvent.Timestamp;
             Exception = logEvent.Exception;
             MessageTemplate = logEvent.MessageTemplate.Text;
             Level = logEvent.Level;
