@@ -28,11 +28,13 @@ namespace Serilog.Sinks.AzureDocumentDb
         DocumentClient _client;
         Database _database;
         DocumentCollection _collection;
+        bool _storeTimestampInUtc;
 
-        public AzureDocumentDBSink(Uri endpointUri, string authorizationKey, string databaseName, string collectionName, IFormatProvider formatProvider)
+        public AzureDocumentDBSink(Uri endpointUri, string authorizationKey, string databaseName, string collectionName, IFormatProvider formatProvider, bool storeTimestampInUtc)
         {
             _formatProvider = formatProvider;
             _client = new DocumentClient(endpointUri, authorizationKey);
+            _storeTimestampInUtc = storeTimestampInUtc;
             Task.WaitAll(new []{CreateDatabaseIfNotExistsAsync(databaseName)});
             Task.WaitAll(new []{CreateCollectionIfNotExistsAsync(collectionName)});
         }
@@ -68,7 +70,7 @@ namespace Serilog.Sinks.AzureDocumentDb
 
         private Task EmitAsync(LogEvent logEvent)
         {
-            return _client.CreateDocumentAsync(_collection.SelfLink, new Data.LogEvent(logEvent, logEvent.RenderMessage(_formatProvider)));
+            return _client.CreateDocumentAsync(_collection.SelfLink, new Data.LogEvent(logEvent, logEvent.RenderMessage(_formatProvider), _storeTimestampInUtc));
         }
     }
 }
