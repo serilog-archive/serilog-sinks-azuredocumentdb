@@ -36,13 +36,13 @@ namespace Serilog.Sinks.AzureDocumentDb
             _formatProvider = formatProvider;
             _client = new DocumentClient(endpointUri, authorizationKey);
             _storeTimestampInUtc = storeTimestampInUtc;
-            CreateDatabaseIfNotExistsAsync(databaseName).ConfigureAwait(false);
-            CreateCollectionIfNotExistsAsync(collectionName).ConfigureAwait(false);
+            CreateDatabaseIfNotExistsAsync(databaseName).Wait();
+            CreateCollectionIfNotExistsAsync(collectionName).Wait();
         }
 
         public void Emit(LogEvent logEvent)
         {
-            EmitAsync(logEvent).ConfigureAwait(false);
+            EmitAsync(logEvent).Wait();
         }
 
         private async Task CreateDatabaseIfNotExistsAsync(string databaseName)
@@ -50,7 +50,8 @@ namespace Serilog.Sinks.AzureDocumentDb
             _database = _client.CreateDatabaseQuery().Where(x => x.Id == databaseName).AsEnumerable().FirstOrDefault();
             if (_database == null)
             {
-                _database = await _client.CreateDatabaseAsync(new Microsoft.Azure.Documents.Database { Id = databaseName });
+                _database = await _client.CreateDatabaseAsync(new Microsoft.Azure.Documents.Database { Id = databaseName })
+                    .ConfigureAwait(false);
             }
         }
 
@@ -59,14 +60,15 @@ namespace Serilog.Sinks.AzureDocumentDb
             _collection = _client.CreateDocumentCollectionQuery(_database.SelfLink).Where(x => x.Id == collectionName).AsEnumerable().FirstOrDefault();
             if (_collection == null)
             {
-                _collection = await _client.CreateDocumentCollectionAsync(_database.SelfLink, new DocumentCollection() { Id = collectionName });
+                _collection = await _client.CreateDocumentCollectionAsync(_database.SelfLink, new DocumentCollection() { Id = collectionName })
+                    .ConfigureAwait(false);
             }
         }
 
-        private async Task<string> EmitAsync(LogEvent logEvent)
+        private async Task EmitAsync(LogEvent logEvent)
         {
-            var document = await _client.CreateDocumentAsync(_collection.SelfLink, new Data.LogEvent(logEvent, logEvent.RenderMessage(_formatProvider), _storeTimestampInUtc), new RequestOptions {}, false);
-            return document.ActivityId;
+            await _client.CreateDocumentAsync(_collection.SelfLink, new Data.LogEvent(logEvent, logEvent.RenderMessage(_formatProvider), _storeTimestampInUtc), new RequestOptions {}, false)
+                .ConfigureAwait(false);
         }
     }
 }
