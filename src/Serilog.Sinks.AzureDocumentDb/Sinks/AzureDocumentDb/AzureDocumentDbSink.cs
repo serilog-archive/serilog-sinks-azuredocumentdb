@@ -15,7 +15,6 @@
 using System;
 using System.Collections.Concurrent;
 using System.Linq;
-using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Azure.Documents;
@@ -35,9 +34,11 @@ namespace Serilog.Sinks.AzureDocumentDb
         bool _storeTimestampInUtc;
         bool _useBuffer;
 
-        readonly CancellationTokenSource _cancel = new CancellationTokenSource();
-        readonly BlockingCollection<LogEvent> _queue;
-        readonly Thread _worker;
+        readonly CancellationTokenSource _cancelToken = new CancellationTokenSource();
+        readonly BlockingCollection<LogEvent> _logEventsQueue;
+        readonly Thread _workerThread;
+
+        volatile int _logEventsCount = 0;
 
         public AzureDocumentDBSink(Uri endpointUri, string authorizationKey, string databaseName, string collectionName, IFormatProvider formatProvider, bool storeTimestampInUtc, bool useBuffer)
         {
@@ -51,9 +52,9 @@ namespace Serilog.Sinks.AzureDocumentDb
 
             if (_useBuffer)
             {
-                _queue = new BlockingCollection<LogEvent>(1000);
-                _worker = new Thread(Pump) { IsBackground = true, Priority = ThreadPriority.AboveNormal, Name = typeof(AzureDocumentDBSink).FullName };
-                _worker.Start();
+                _logEventsQueue = new BlockingCollection<LogEvent>(1000);
+                _workerThread = new Thread(Pump) { IsBackground = true, Priority = ThreadPriority.AboveNormal, Name = typeof(AzureDocumentDBSink).FullName };
+                _workerThread.Start();
             }
         }
 
@@ -61,7 +62,7 @@ namespace Serilog.Sinks.AzureDocumentDb
         {
             if (_useBuffer)
             {
-                _queue.Add(logEvent);
+                _logEventsQueue.Add(logEvent);
             }
             else
             {
@@ -110,22 +111,28 @@ namespace Serilog.Sinks.AzureDocumentDb
                 new RequestOptions { }, false).Wait();
         }
 
+        void ThreadPoolWorker(object logEvent)
+        {
+            Interlocked.Decrement(ref _logEventsCount);
+            WriteLogEvent((LogEvent)logEvent);
+        }
+
         void Pump()
         {
             try
             {
                 while (true)
                 {
-                    var next = _queue.Take(_cancel.Token);
+                    var next = _logEventsQueue.Take(_cancelToken.Token);
                     WriteLogEvent(next);
                 }
             }
             catch (OperationCanceledException)
             {
-                LogEvent next;
-                while (_queue.TryTake(out next))
+                Parallel.ForEach(_logEventsQueue.ToArray(), item => WriteLogEvent(item));
+                while (_logEventsCount > 0)
                 {
-                    WriteLogEvent(next);
+                    Thread.Sleep(100);
                 }
             }
             catch (Exception ex)
@@ -143,8 +150,8 @@ namespace Serilog.Sinks.AzureDocumentDb
             {
                 if (disposing)
                 {
-                    _cancel.Cancel();
-                    _worker.Join();
+                    _cancelToken.Cancel();
+                    _workerThread.Join();
                 }
 
                 disposedValue = true;
