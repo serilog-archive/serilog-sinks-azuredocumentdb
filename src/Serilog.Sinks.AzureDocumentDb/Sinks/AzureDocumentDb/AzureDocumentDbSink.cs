@@ -14,6 +14,7 @@
 
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -31,14 +32,13 @@ namespace Serilog.Sinks.AzureDocumentDb
         DocumentClient _client;
         Database _database;
         DocumentCollection _collection;
+        List<Task> _workerTasks = new List<Task>();
         bool _storeTimestampInUtc;
         bool _useBuffer;
 
         readonly CancellationTokenSource _cancelToken = new CancellationTokenSource();
         readonly BlockingCollection<LogEvent> _logEventsQueue;
         readonly Thread _workerThread;
-
-        volatile int _logEventsCount = 0;
 
         public AzureDocumentDBSink(Uri endpointUri, string authorizationKey, string databaseName, string collectionName, IFormatProvider formatProvider, bool storeTimestampInUtc, bool useBuffer)
         {
@@ -111,12 +111,6 @@ namespace Serilog.Sinks.AzureDocumentDb
                 new RequestOptions { }, false).Wait();
         }
 
-        void ThreadPoolWorker(object logEvent)
-        {
-            Interlocked.Decrement(ref _logEventsCount);
-            WriteLogEvent((LogEvent)logEvent);
-        }
-
         void Pump()
         {
             try
@@ -124,16 +118,23 @@ namespace Serilog.Sinks.AzureDocumentDb
                 while (true)
                 {
                     var next = _logEventsQueue.Take(_cancelToken.Token);
-                    WriteLogEvent(next);
+                    var workerTask = Task.Factory.StartNew((t) =>
+                    {
+                        WriteLogEvent(t as LogEvent);
+                    }, next);
+
+                    _workerTasks.Add(workerTask);
+                    if (_workerTasks.Count >= Environment.ProcessorCount)
+                    {
+                        Task.WaitAll(_workerTasks.ToArray());
+                        _workerTasks.Clear();
+                    }
                 }
             }
             catch (OperationCanceledException)
             {
-                Parallel.ForEach(_logEventsQueue.ToArray(), item => WriteLogEvent(item));
-                while (_logEventsCount > 0)
-                {
-                    Thread.Sleep(100);
-                }
+                Task.WaitAll(_workerTasks.ToArray());
+                _logEventsQueue.AsParallel().ForAll(item => WriteLogEvent(item));
             }
             catch (Exception ex)
             {
