@@ -1,4 +1,4 @@
-﻿// Copyright 2014 Serilog Contributors
+﻿// Copyright 2016 Serilog Contributors
 // 
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 
 using System;
 using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
 using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
@@ -35,42 +36,39 @@ namespace Serilog.Sinks.AzureDocumentDb
             _formatProvider = formatProvider;
             _client = new DocumentClient(endpointUri, authorizationKey);
             _storeTimestampInUtc = storeTimestampInUtc;
-            Task.WaitAll(new []{CreateDatabaseIfNotExistsAsync(databaseName)});
-            Task.WaitAll(new []{CreateCollectionIfNotExistsAsync(collectionName)});
+            CreateDatabaseIfNotExistsAsync(databaseName).Wait();
+            CreateCollectionIfNotExistsAsync(collectionName).Wait();
         }
 
         public void Emit(LogEvent logEvent)
         {
-            Task.WaitAll(EmitAsync(logEvent));
+            EmitAsync(logEvent).Wait();
         }
 
         private async Task CreateDatabaseIfNotExistsAsync(string databaseName)
         {
-            _database = (await _client.ReadDatabaseFeedAsync())
-                .SingleOrDefault(d => d.Id == databaseName);
-
+            _database = _client.CreateDatabaseQuery().Where(x => x.Id == databaseName).AsEnumerable().FirstOrDefault();
             if (_database == null)
-                _database = await _client.CreateDatabaseAsync(new Database
-                {
-                    Id = databaseName
-                });
+            {
+                _database = await _client.CreateDatabaseAsync(new Microsoft.Azure.Documents.Database { Id = databaseName })
+                    .ConfigureAwait(false);
+            }
         }
 
         private async Task CreateCollectionIfNotExistsAsync(string collectionName)
         {
-            _collection = (await _client.ReadDocumentCollectionFeedAsync(_database.CollectionsLink))
-                .SingleOrDefault(c => c.Id == collectionName);
-
+            _collection = _client.CreateDocumentCollectionQuery(_database.SelfLink).Where(x => x.Id == collectionName).AsEnumerable().FirstOrDefault();
             if (_collection == null)
-                _collection = await _client.CreateDocumentCollectionAsync(_database.SelfLink, new DocumentCollection
-                {
-                    Id = collectionName
-                });
+            {
+                _collection = await _client.CreateDocumentCollectionAsync(_database.SelfLink, new DocumentCollection() { Id = collectionName })
+                    .ConfigureAwait(false);
+            }
         }
 
-        private Task EmitAsync(LogEvent logEvent)
+        private async Task EmitAsync(LogEvent logEvent)
         {
-            return _client.CreateDocumentAsync(_collection.SelfLink, new Data.LogEvent(logEvent, logEvent.RenderMessage(_formatProvider), _storeTimestampInUtc));
+            await _client.CreateDocumentAsync(_collection.SelfLink, new Data.LogEvent(logEvent, logEvent.RenderMessage(_formatProvider), _storeTimestampInUtc), new RequestOptions {}, false)
+                .ConfigureAwait(false);
         }
     }
 }
