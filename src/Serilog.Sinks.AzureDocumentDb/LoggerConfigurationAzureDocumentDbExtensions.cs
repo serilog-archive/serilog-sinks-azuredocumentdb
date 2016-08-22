@@ -51,7 +51,7 @@ namespace Serilog
             if (endpointUri == null) throw new ArgumentNullException("endpointUri");
             if (authorizationKey == null) throw new ArgumentNullException("authorizationKey");
             return loggerConfiguration.Sink(
-                new AzureDocumentDBSink(endpointUri, authorizationKey, databaseName, collectionName, formatProvider, storeTimestampInUtc, useBuffer),
+                new AzureDocumentDBSink(endpointUri, authorizationKey, databaseName, collectionName, formatProvider, storeTimestampInUtc),
                 restrictedToMinimumLevel);
         }
     }

@@ -64,6 +64,7 @@
     <Compile Include="Sinks\AzureDocumentDB\AzureDocumentDBSink.cs" />
     <Compile Include="Sinks\AzureDocumentDB\Data\LogEvent.cs" />
     <Compile Include="Sinks\AzureDocumentDB\DocumentDBPropertyFormatter.cs" />
+    <Compile Include="Sinks\AzureDocumentDB\ConcurrentLogEventSink.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\assets\Serilog.snk">

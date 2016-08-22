@@ -13,70 +13,32 @@
 // limitations under the License.
 
 using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
 using Serilog.Core;
-using Serilog.Debugging;
 using Serilog.Events;
 
 namespace Serilog.Sinks.AzureDocumentDb
 {
-    public class AzureDocumentDBSink : ILogEventSink, IDisposable
+    public class AzureDocumentDBSink : ConcurrentLogEventSink
     {
         readonly IFormatProvider _formatProvider;
         DocumentClient _client;
         Database _database;
         DocumentCollection _collection;
-        List<Task> _workerTasks = new List<Task>();
         bool _storeTimestampInUtc;
-        bool _useBuffer;
 
-        readonly CancellationTokenSource _cancelToken = new CancellationTokenSource();
-        readonly BlockingCollection<LogEvent> _logEventsQueue;
-        readonly Thread _workerThread;
 
-        public AzureDocumentDBSink(Uri endpointUri, string authorizationKey, string databaseName, string collectionName, IFormatProvider formatProvider, bool storeTimestampInUtc, bool useBuffer = true)
+        public AzureDocumentDBSink(Uri endpointUri, string authorizationKey, string databaseName, string collectionName, IFormatProvider formatProvider, bool storeTimestampInUtc)
         {
             _formatProvider = formatProvider;
             _client = new DocumentClient(endpointUri, authorizationKey);
             _storeTimestampInUtc = storeTimestampInUtc;
-            _useBuffer = useBuffer;
 
             CreateDatabaseIfNotExistsAsync(databaseName).Wait();
             CreateCollectionIfNotExistsAsync(collectionName).Wait();
-
-            if (_useBuffer)
-            {
-                _logEventsQueue = new BlockingCollection<LogEvent>(1000);
-                _workerThread = new Thread(Pump) { IsBackground = true, Priority = ThreadPriority.AboveNormal, Name = typeof(AzureDocumentDBSink).FullName };
-                _workerThread.Start();
-            }
-        }
-
-        public void Emit(LogEvent logEvent)
-        {
-            if (_useBuffer)
-            {
-                _logEventsQueue.Add(logEvent);
-            }
-            else
-            {
-                EmitAsync(logEvent).Wait();
-            }
-        }
-
-        private async Task EmitAsync(LogEvent logEvent)
-        {
-            await Task.Factory.StartNew((e) =>
-            {
-                WriteLogEvent(e as LogEvent);
-            },
-            logEvent).ConfigureAwait(false);
         }
 
         private async Task CreateDatabaseIfNotExistsAsync(string databaseName)
@@ -100,7 +62,7 @@ namespace Serilog.Sinks.AzureDocumentDb
             }
         }
 
-        void WriteLogEvent(LogEvent logEvent)
+        protected override void WriteLogEvent(LogEvent logEvent)
         {
             _client.CreateDocumentAsync(
                 _collection.SelfLink,
@@ -110,59 +72,5 @@ namespace Serilog.Sinks.AzureDocumentDb
                     _storeTimestampInUtc),
                 new RequestOptions { }, false).Wait();
         }
-
-        void Pump()
-        {
-            try
-            {
-                while (true)
-                {
-                    var next = _logEventsQueue.Take(_cancelToken.Token);
-                    var workerTask = Task.Factory.StartNew((t) =>
-                    {
-                        WriteLogEvent(t as LogEvent);
-                    }, next);
-
-                    _workerTasks.Add(workerTask);
-                    if (_workerTasks.Count >= Environment.ProcessorCount)
-                    {
-                        Task.WaitAll(_workerTasks.ToArray());
-                        _workerTasks.Clear();
-                    }
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                Task.WaitAll(_workerTasks.ToArray());
-                _logEventsQueue.AsParallel().ForAll(item => WriteLogEvent(item));
-            }
-            catch (Exception ex)
-            {
-                SelfLog.WriteLine("{0} fatal error in worker thread: {1}", typeof(AzureDocumentDBSink), ex);
-            }
-        }
-
-        #region IDisposable Support
-        private bool disposedValue = false;
-
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!disposedValue)
-            {
-                if (disposing & _useBuffer)
-                {
-                    _cancelToken.Cancel();
-                    _workerThread.Join();
-                }
-
-                disposedValue = true;
-            }
-        }
-
-        public void Dispose()
-        {
-            Dispose(true);
-        }
-        #endregion
     }
 }
