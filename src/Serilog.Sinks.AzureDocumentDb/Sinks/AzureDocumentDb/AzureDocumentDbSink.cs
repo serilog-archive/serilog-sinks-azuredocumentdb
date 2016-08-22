@@ -40,7 +40,7 @@ namespace Serilog.Sinks.AzureDocumentDb
         readonly BlockingCollection<LogEvent> _logEventsQueue;
         readonly Thread _workerThread;
 
-        public AzureDocumentDBSink(Uri endpointUri, string authorizationKey, string databaseName, string collectionName, IFormatProvider formatProvider, bool storeTimestampInUtc, bool useBuffer)
+        public AzureDocumentDBSink(Uri endpointUri, string authorizationKey, string databaseName, string collectionName, IFormatProvider formatProvider, bool storeTimestampInUtc, bool useBuffer = true)
         {
             _formatProvider = formatProvider;
             _client = new DocumentClient(endpointUri, authorizationKey);
@@ -149,7 +149,7 @@ namespace Serilog.Sinks.AzureDocumentDb
         {
             if (!disposedValue)
             {
-                if (disposing)
+                if (disposing & _useBuffer)
                 {
                     _cancelToken.Cancel();
                     _workerThread.Join();
