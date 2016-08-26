@@ -44,7 +44,8 @@ namespace Serilog
             string collectionName = "Logs",
             LogEventLevel restrictedToMinimumLevel = LevelAlias.Minimum,
             IFormatProvider formatProvider = null,
-            bool storeTimestampInUtc = false)
+            bool storeTimestampInUtc = false,
+            bool useBuffer = false)
         {
             if (loggerConfiguration == null) throw new ArgumentNullException("loggerConfiguration");
             if (endpointUri == null) throw new ArgumentNullException("endpointUri");
