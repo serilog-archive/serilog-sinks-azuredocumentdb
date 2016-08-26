@@ -11,8 +11,8 @@
     <iconUrl>http://serilog.net/images/serilog-sink-nuget.png</iconUrl>
     <tags>serilog logging azure</tags>
     <dependencies>
-      <dependency id="Serilog" version="[1.5.14,2)" />
-      <dependency id="Microsoft.Azure.DocumentDB" version="1.5.0" />
+      <dependency id="Serilog" version="1.5.14" />
+      <dependency id="Microsoft.Azure.DocumentDB" version="1.9.0" />
     </dependencies>
   </metadata>
 </package>
