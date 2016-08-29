@@ -34,7 +34,6 @@ namespace Serilog.Sinks.AzureDocumentDb
         DocumentCollection _collection;
         bool _storeTimestampInUtc;
 
-
         public AzureDocumentDBSink(Uri endpointUri, string authorizationKey, string databaseName, string collectionName, IFormatProvider formatProvider, bool storeTimestampInUtc)
         {
             _formatProvider = formatProvider;
@@ -96,7 +95,6 @@ namespace Serilog.Sinks.AzureDocumentDb
         {
             try
             {
-                var numProcessors = Environment.ProcessorCount;
                 while (true)
                 {
                     var next = _logEventsQueue.Take(_cancelToken.Token);
@@ -106,7 +104,7 @@ namespace Serilog.Sinks.AzureDocumentDb
                     }, next);
 
                     _workerTasks.Add(workerTask);
-                    if (_workerTasks.Count >= numProcessors)
+                    if (_workerTasks.Count >= Environment.ProcessorCount)
                     {
                         Task.WaitAll(_workerTasks.ToArray());
                         _workerTasks.Clear();
@@ -116,7 +114,9 @@ namespace Serilog.Sinks.AzureDocumentDb
             catch (OperationCanceledException)
             {
                 Task.WaitAll(_workerTasks.ToArray());
-                _logEventsQueue.AsParallel().ForAll(item => WriteLogEvent(item));
+                _logEventsQueue.AsParallel()
+                    .WithExecutionMode(ParallelExecutionMode.ForceParallelism)
+                    .ForAll(item => WriteLogEvent(item));
             }
             catch (Exception ex)
             {
