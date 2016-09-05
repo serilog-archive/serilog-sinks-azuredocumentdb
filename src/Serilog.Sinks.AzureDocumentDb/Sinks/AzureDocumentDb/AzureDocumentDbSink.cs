@@ -16,10 +16,12 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
+using Newtonsoft.Json;
 using Serilog.Core;
 using Serilog.Debugging;
 using Serilog.Events;
@@ -28,12 +30,13 @@ namespace Serilog.Sinks.AzureDocumentDb
 {
     public class AzureDocumentDBSink : ILogEventSink, IDisposable
     {
-        readonly IFormatProvider _formatProvider;
-        DocumentClient _client;
-        Database _database;
-        DocumentCollection _collection;
-        bool _storeTimestampInUtc;
-
+        private readonly IFormatProvider _formatProvider;
+        private string BulkStoredProcedureId = "BulkImport";
+        private string BulkStoredProcedureLink;
+        private DocumentClient _client;
+        private Database _database;
+        private DocumentCollection _collection;
+        private bool _storeTimestampInUtc;
 
         public AzureDocumentDBSink(Uri endpointUri, string authorizationKey, string databaseName, string collectionName, IFormatProvider formatProvider, bool storeTimestampInUtc)
         {
@@ -45,6 +48,13 @@ namespace Serilog.Sinks.AzureDocumentDb
             CreateCollectionIfNotExistsAsync(collectionName).Wait();
 
             InitializeParallelSink();
+        }
+
+        private StoredProcedure GetStoredProcedure(string collectionLink, string Id)
+        {
+            return _client.CreateStoredProcedureQuery(collectionLink)
+                .Where(s => s.Id == Id).AsEnumerable().FirstOrDefault();
+
         }
 
         private async Task CreateDatabaseIfNotExistsAsync(string databaseName)
@@ -66,6 +76,38 @@ namespace Serilog.Sinks.AzureDocumentDb
                 _collection = await _client.CreateDocumentCollectionAsync(_database.SelfLink, documentCollection)
                     .ConfigureAwait(false);
             }
+
+            var currentAssembly = Assembly.GetExecutingAssembly();
+            var resourceName = "Serilog.Sinks.AzureDocumentDB.bulkImport.js";
+
+            using (var resourceStream = currentAssembly.GetManifestResourceStream(resourceName))
+            {
+                if (resourceStream != null)
+                {
+                    var reader = new System.IO.StreamReader(resourceStream);
+                    var bulkImportSrc = reader.ReadToEnd();
+                    try
+                    {
+                        var sp = new StoredProcedure
+                        {
+                            Id = BulkStoredProcedureId,
+                            Body = bulkImportSrc
+                        };
+
+                        var sproc = GetStoredProcedure(_collection.SelfLink, sp.Id);
+                        if (sproc == null)
+                        {
+                            sproc = await _client.CreateStoredProcedureAsync(_collection.SelfLink, sp);
+                        }
+
+                        BulkStoredProcedureLink = sproc.SelfLink;
+                    }
+                    catch (Exception ex)
+                    {
+                        SelfLog.WriteLine(ex.Message);
+                    }
+                }
+            }
         }
 
         #region Parallel Log Processing Support
@@ -85,6 +127,19 @@ namespace Serilog.Sinks.AzureDocumentDb
                 new RequestOptions { }, false).Wait();
         }
 
+        private async Task<double> WriteLogEventBulk(IEnumerable<LogEvent> logEvents)
+        {
+            var logMsgs = logEvents.ToArray();
+            if (logMsgs.Length > 0)
+            {
+                var argsJson = JsonConvert.SerializeObject(logMsgs, Newtonsoft.Json.Formatting.Indented);
+                var args = new dynamic[] { JsonConvert.DeserializeObject<dynamic>(argsJson) };
+                var numWrites = await _client.ExecuteStoredProcedureAsync<int>(BulkStoredProcedureLink, args);
+                return numWrites.RequestCharge;
+            }
+            return 0.0;
+        }
+
         void InitializeParallelSink()
         {
             _logEventsQueue = new BlockingCollection<LogEvent>(1000);
@@ -96,7 +151,6 @@ namespace Serilog.Sinks.AzureDocumentDb
         {
             try
             {
-                var numProcessors = Environment.ProcessorCount;
                 while (true)
                 {
                     var next = _logEventsQueue.Take(_cancelToken.Token);
@@ -106,7 +160,7 @@ namespace Serilog.Sinks.AzureDocumentDb
                     }, next);
 
                     _workerTasks.Add(workerTask);
-                    if (_workerTasks.Count >= numProcessors)
+                    if (_workerTasks.Count >= Environment.ProcessorCount)
                     {
                         Task.WaitAll(_workerTasks.ToArray());
                         _workerTasks.Clear();
@@ -116,7 +170,8 @@ namespace Serilog.Sinks.AzureDocumentDb
             catch (OperationCanceledException)
             {
                 Task.WaitAll(_workerTasks.ToArray());
-                _logEventsQueue.AsParallel().ForAll(item => WriteLogEvent(item));
+
+                WriteLogEventBulk(_logEventsQueue).Wait();
             }
             catch (Exception ex)
             {
