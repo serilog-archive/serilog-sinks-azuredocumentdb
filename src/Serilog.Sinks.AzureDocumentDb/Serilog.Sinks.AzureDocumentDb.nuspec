@@ -3,7 +3,7 @@
   <metadata>
     <id>Serilog.Sinks.AzureDocumentDB</id>
     <version>$version$</version>
-    <authors>Robert Moore</authors>
+    <authors>Robert Moore, Saleem Mirza</authors>
     <description>Serilog event sink that writes to Azure DocumentDB over HTTP.</description>
     <language>en-US</language>
     <projectUrl>http://serilog.net</projectUrl>
