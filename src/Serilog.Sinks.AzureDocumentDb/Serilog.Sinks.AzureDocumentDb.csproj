@@ -69,7 +69,6 @@
     <None Include="..\..\assets\Serilog.snk">
       <Link>Serilog.snk</Link>
     </None>
-    <None Include="app.config" />
     <None Include="packages.config" />
     <None Include="Serilog.Sinks.AzureDocumentDB.nuspec">
       <SubType>Designer</SubType>
