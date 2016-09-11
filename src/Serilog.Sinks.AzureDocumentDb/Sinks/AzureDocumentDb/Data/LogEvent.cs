@@ -37,8 +37,7 @@ namespace Serilog.Sinks.AzureDocumentDb.Data
         {
             Timestamp = storeTimestampInUtc ? logEvent.Timestamp.ToUniversalTime() : logEvent.Timestamp;
             Exception = logEvent.Exception;
-            MessageTemplate = logEvent.MessageTemplate.Text;
-            Level = logEvent.Level;
+            Level = logEvent.Level.ToString();
             RenderedMessage = renderedMessage;
             Properties = new Dictionary<string, object>();
             foreach (var pair in logEvent.Properties)
@@ -53,14 +52,9 @@ namespace Serilog.Sinks.AzureDocumentDb.Data
         public DateTimeOffset Timestamp { get; set; }
 
         /// <summary>
-        /// The template that was used for the log message.
-        /// </summary>
-        public string MessageTemplate { get; set; }
-
-        /// <summary>
         /// The level of the log.
         /// </summary>
-        public LogEventLevel Level { get; set; }
+        public string Level { get; set; }
 
         /// <summary>
         /// A string representation of the exception that was attached to the log (if any).
