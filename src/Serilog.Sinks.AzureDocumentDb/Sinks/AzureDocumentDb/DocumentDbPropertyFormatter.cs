@@ -90,6 +90,11 @@ namespace Serilog.Sinks.AzureDocumentDb
             var valueType = value.GetType();
             if (ScalarTypes.Contains(valueType)) return value;
 
+            if(value is ScalarValue)
+            {
+                return (value as ScalarValue).Value;
+            }
+
             return value.ToString();
         }
     }

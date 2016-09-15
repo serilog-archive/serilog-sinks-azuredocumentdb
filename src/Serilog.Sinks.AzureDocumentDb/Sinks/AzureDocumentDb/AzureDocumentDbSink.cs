@@ -148,7 +148,7 @@ namespace Serilog.Sinks.AzureDocumentDb
 
         #region Parallel Log Processing Support
 
-        private const int BatchSize = 100;
+        private const int BatchSize = 300;
         private long _operationCount;
         private volatile bool _canStop;
         private string _collectionLink;
