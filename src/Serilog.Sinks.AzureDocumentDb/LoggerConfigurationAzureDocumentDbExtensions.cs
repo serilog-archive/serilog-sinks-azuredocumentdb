@@ -20,12 +20,12 @@ using Serilog.Sinks.AzureDocumentDb;
 namespace Serilog
 {
     /// <summary>
-    /// Adds the WriteTo.AzureDocumentDb() extension method to <see cref="LoggerConfiguration"/>.
+    ///     Adds the WriteTo.AzureDocumentDb() extension method to <see cref="LoggerConfiguration" />.
     /// </summary>
     public static class LoggerConfigurationAzureDocumentDBExtensions
     {
         /// <summary>
-        /// Adds a sink that writes log events to a Azure DocumentDB table in the provided endpoint.
+        ///     Adds a sink that writes log events to a Azure DocumentDB table in the provided endpoint.
         /// </summary>
         /// <param name="loggerConfiguration">The logger configuration.</param>
         /// <param name="endpointUri">The endpoint URI of the document db.</param>
@@ -50,7 +50,8 @@ namespace Serilog
             if (endpointUri == null) throw new ArgumentNullException("endpointUri");
             if (authorizationKey == null) throw new ArgumentNullException("authorizationKey");
             return loggerConfiguration.Sink(
-                new AzureDocumentDBSink(endpointUri, authorizationKey, databaseName, collectionName, formatProvider, storeTimestampInUtc),
+                new AzureDocumentDBSink(endpointUri, authorizationKey, databaseName, collectionName, formatProvider,
+                    storeTimestampInUtc),
                 restrictedToMinimumLevel);
         }
     }

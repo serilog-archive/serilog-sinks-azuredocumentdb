@@ -27,24 +27,20 @@ using Newtonsoft.Json;
 using Serilog.Core;
 using Serilog.Debugging;
 using Serilog.Events;
+using Serilog.Formatting.Json;
 
 namespace Serilog.Sinks.AzureDocumentDb
 {
     public class AzureDocumentDBSink : ILogEventSink, IDisposable
     {
-        private readonly IFormatProvider _formatProvider;
-
-        private Uri _endpointUri;
-        private string _authorizationKey;
-
-
-        private string _bulkStoredProcedureLink;
         private const string BulkStoredProcedureId = "BulkImport";
-
-        private Database _database;
-        private DocumentCollection _collection;
         private readonly DocumentClient _client;
         private readonly bool _storeTimestampInUtc;
+        private string _authorizationKey;
+        private string _bulkStoredProcedureLink;
+        private DocumentCollection _collection;
+        private Database _database;
+        private Uri _endpointUri;
 
         public AzureDocumentDBSink(Uri endpointUri,
             string authorizationKey,
@@ -53,7 +49,6 @@ namespace Serilog.Sinks.AzureDocumentDb
             IFormatProvider formatProvider,
             bool storeTimestampInUtc)
         {
-            _formatProvider = formatProvider;
             _endpointUri = endpointUri;
             _authorizationKey = authorizationKey;
 
@@ -63,17 +58,39 @@ namespace Serilog.Sinks.AzureDocumentDb
                 {
                     ConnectionMode = ConnectionMode.Gateway,
                     ConnectionProtocol = Protocol.Https,
-                    MaxConnectionLimit = Environment.ProcessorCount * 50 + 200
+                    MaxConnectionLimit = Environment.ProcessorCount*50 + 200
                 });
 
             _storeTimestampInUtc = storeTimestampInUtc;
-            _jsonFormater = new Formatting.Json.JsonFormatter(formatProvider: _formatProvider);
+            _jsonFormater = new JsonFormatter(formatProvider: formatProvider);
 
             CreateDatabaseIfNotExistsAsync(databaseName).Wait();
             CreateCollectionIfNotExistsAsync(collectionName).Wait();
 
             InitializeParallelSink();
         }
+
+        #region ILogEventSink Support
+
+        public void Emit(LogEvent logEvent)
+        {
+            if (_canStop)
+            {
+                return;
+            }
+
+            _emitResetEvent.Wait();
+
+            _logEventBatch.Add(logEvent);
+            if (_logEventBatch.Count < BatchSize)
+            {
+                return;
+            }
+            _logEventsQueue.Add(_logEventBatch.ToArray());
+            _logEventBatch.Clear();
+        }
+
+        #endregion
 
         private async Task CreateDatabaseIfNotExistsAsync(string databaseName)
         {
@@ -82,17 +99,21 @@ namespace Serilog.Sinks.AzureDocumentDb
 
             if (_database == null)
             {
-                _database = await _client.CreateDatabaseAsync(new Database { Id = databaseName })
+                _database = await _client.CreateDatabaseAsync(new Database {Id = databaseName})
                     .ConfigureAwait(false);
             }
         }
 
         private async Task CreateCollectionIfNotExistsAsync(string collectionName)
         {
-            _collection = _client.CreateDocumentCollectionQuery(_database.SelfLink).Where(x => x.Id == collectionName).AsEnumerable().FirstOrDefault();
+            _collection =
+                _client.CreateDocumentCollectionQuery(_database.SelfLink)
+                    .Where(x => x.Id == collectionName)
+                    .AsEnumerable()
+                    .FirstOrDefault();
             if (_collection == null)
             {
-                var documentCollection = new DocumentCollection() { Id = collectionName };
+                var documentCollection = new DocumentCollection {Id = collectionName};
                 _collection = await _client.CreateDocumentCollectionAsync(_database.SelfLink, documentCollection)
                     .ConfigureAwait(false);
             }
@@ -109,7 +130,7 @@ namespace Serilog.Sinks.AzureDocumentDb
             {
                 if (resourceStream != null)
                 {
-                    var reader = new System.IO.StreamReader(resourceStream);
+                    var reader = new StreamReader(resourceStream);
                     var bulkImportSrc = reader.ReadToEnd();
                     try
                     {
@@ -146,7 +167,6 @@ namespace Serilog.Sinks.AzureDocumentDb
         {
             return _client.CreateStoredProcedureQuery(collectionLink)
                 .Where(s => s.Id == id).AsEnumerable().FirstOrDefault();
-
         }
 
         #region Parallel Log Processing Support
@@ -155,7 +175,7 @@ namespace Serilog.Sinks.AzureDocumentDb
         private long _operationCount;
         private volatile bool _canStop;
         private string _collectionLink;
-        private Serilog.Formatting.Json.JsonFormatter _jsonFormater;
+        private readonly JsonFormatter _jsonFormater;
 
         private readonly Mutex _exceptionMut = new Mutex();
         private readonly List<LogEvent> _logEventBatch = new List<LogEvent>();
@@ -169,10 +189,9 @@ namespace Serilog.Sinks.AzureDocumentDb
 
         private LogEvent ConvertTimestampToUtc(LogEvent logEvent)
         {
-            
             logEvent.AddOrUpdateProperty(
-                        new LogEventProperty("Timestamp",
-                        new ScalarValue(logEvent.Timestamp.ToUniversalTime().ToString())));
+                new LogEventProperty("Timestamp",
+                    new ScalarValue(logEvent.Timestamp.ToUniversalTime().ToString())));
             return logEvent;
         }
 
@@ -193,7 +212,7 @@ namespace Serilog.Sinks.AzureDocumentDb
             }
             _jsonFormater.Format(logEvents[0], stringWriter);
 
-            for (int i = 1; i < logEvents.Count; i++)
+            for (var i = 1; i < logEvents.Count; i++)
             {
                 jsonBuilder.Append(",");
                 if (_storeTimestampInUtc)
@@ -216,13 +235,13 @@ namespace Serilog.Sinks.AzureDocumentDb
                 var exception = e.InnerException as DocumentClientException;
                 if (exception != null)
                 {
-                    var ei = (DocumentClientException)e.InnerException;
+                    var ei = (DocumentClientException) e.InnerException;
                     try
                     {
                         _exceptionMut.WaitOne();
 
                         if (ei.StatusCode != null)
-                            switch ((int)ei.StatusCode)
+                            switch ((int) ei.StatusCode)
                             {
                                 case 429:
                                     SelfLog.WriteLine("Waiting for {0} ms.", ei.RetryAfter.Milliseconds);
@@ -245,7 +264,8 @@ namespace Serilog.Sinks.AzureDocumentDb
             }
 
             Interlocked.Increment(ref _operationCount);
-            SelfLog.WriteLine("OP# {0}, Thread# {1}, Messages {2}", _operationCount, Thread.CurrentThread.ManagedThreadId, logEvents.Count);
+            SelfLog.WriteLine("OP# {0}, Thread# {1}, Messages {2}", _operationCount,
+                Thread.CurrentThread.ManagedThreadId, logEvents.Count);
         }
 
         private void InitializeParallelSink()
@@ -255,7 +275,7 @@ namespace Serilog.Sinks.AzureDocumentDb
 
             for (var i = 0; i < Environment.ProcessorCount; i++)
             {
-                var thread = new Thread(Pump) { IsBackground = true, Priority = ThreadPriority.AboveNormal };
+                var thread = new Thread(Pump) {IsBackground = true, Priority = ThreadPriority.AboveNormal};
                 thread.Start();
                 _workerThreads.Add(thread);
             }
@@ -312,13 +332,14 @@ namespace Serilog.Sinks.AzureDocumentDb
             }
             catch (Exception ex)
             {
-                SelfLog.WriteLine("{0} fatal error in worker thread: {1}", typeof(AzureDocumentDBSink), ex);
+                SelfLog.WriteLine("{0} fatal error in worker thread: {1}", typeof (AzureDocumentDBSink), ex);
             }
         }
 
         #endregion
 
         #region IDisposable Support
+
         private bool _disposedValue;
 
         protected virtual void Dispose(bool disposing)
@@ -343,27 +364,6 @@ namespace Serilog.Sinks.AzureDocumentDb
         public void Dispose()
         {
             Dispose(true);
-        }
-
-        #endregion
-
-        #region ILogEventSink Support
-        public void Emit(LogEvent logEvent)
-        {
-            if (_canStop)
-            {
-                return;
-            }
-
-            _emitResetEvent.Wait();
-
-            _logEventBatch.Add(logEvent);
-            if (_logEventBatch.Count < BatchSize)
-            {
-                return;
-            }
-            _logEventsQueue.Add(_logEventBatch.ToArray());
-            _logEventBatch.Clear();
         }
 
         #endregion
