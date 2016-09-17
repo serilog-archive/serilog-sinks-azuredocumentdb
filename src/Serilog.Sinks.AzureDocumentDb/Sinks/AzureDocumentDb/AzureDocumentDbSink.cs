@@ -15,8 +15,10 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Azure.Documents;
@@ -65,6 +67,7 @@ namespace Serilog.Sinks.AzureDocumentDb
                 });
 
             _storeTimestampInUtc = storeTimestampInUtc;
+            _jsonFormater = new Formatting.Json.JsonFormatter(formatProvider: _formatProvider);
 
             CreateDatabaseIfNotExistsAsync(databaseName).Wait();
             CreateCollectionIfNotExistsAsync(collectionName).Wait();
@@ -152,38 +155,61 @@ namespace Serilog.Sinks.AzureDocumentDb
         private long _operationCount;
         private volatile bool _canStop;
         private string _collectionLink;
+        private Serilog.Formatting.Json.JsonFormatter _jsonFormater;
 
         private readonly Mutex _exceptionMut = new Mutex();
-        private readonly List<Data.LogEvent> _logEventBatch = new List<Data.LogEvent>();
+        private readonly List<LogEvent> _logEventBatch = new List<LogEvent>();
         private readonly CancellationTokenSource _cancelToken = new CancellationTokenSource();
         private readonly AutoResetEvent _timerResetEvent = new AutoResetEvent(false);
         private readonly ManualResetEventSlim _emitResetEvent = new ManualResetEventSlim(true);
 
-        private BlockingCollection<ICollection<Data.LogEvent>> _logEventsQueue;
+        private BlockingCollection<IList<LogEvent>> _logEventsQueue;
         private List<Thread> _workerThreads;
         private Task _timerTask;
 
-        private Data.LogEvent ConvertLogEventToDataEvent(LogEvent logEvent)
+        private LogEvent ConvertTimestampToUtc(LogEvent logEvent)
         {
-            return new Data.LogEvent(
-                logEvent,
-                logEvent.RenderMessage(_formatProvider),
-                _storeTimestampInUtc);
+            
+            logEvent.AddOrUpdateProperty(
+                        new LogEventProperty("Timestamp",
+                        new ScalarValue(logEvent.Timestamp.ToUniversalTime().ToString())));
+            return logEvent;
         }
 
-        private void WriteLogEventBulk(ICollection<Data.LogEvent> logEvents, string bulkStoredProcedureLink)
+        private void WriteLogEventBulk(IList<LogEvent> logEvents, string bulkStoredProcedureLink)
         {
             if (logEvents == null || logEvents.Count == 0)
             {
                 return;
             }
 
-            var argsJson = JsonConvert.SerializeObject(logEvents);
-            var args = new[] { JsonConvert.DeserializeObject<dynamic>(argsJson) };
+            var jsonBuilder = new StringBuilder();
+            var stringWriter = new StringWriter(jsonBuilder);
+            jsonBuilder.Append("[");
+
+            if (_storeTimestampInUtc)
+            {
+                logEvents[0] = ConvertTimestampToUtc(logEvents[0]);
+            }
+            _jsonFormater.Format(logEvents[0], stringWriter);
+
+            for (int i = 1; i < logEvents.Count; i++)
+            {
+                jsonBuilder.Append(",");
+                if (_storeTimestampInUtc)
+                {
+                    logEvents[i] = ConvertTimestampToUtc(logEvents[i]);
+                }
+                _jsonFormater.Format(logEvents[i], stringWriter);
+            }
+
+            jsonBuilder.Append("]");
+
+            var args = JsonConvert.DeserializeObject(jsonBuilder.ToString());
 
             try
             {
-                _client.ExecuteStoredProcedureAsync<int>(bulkStoredProcedureLink, args).Wait(); 
+                _client.ExecuteStoredProcedureAsync<int>(bulkStoredProcedureLink, args).Wait();
             }
             catch (AggregateException e)
             {
@@ -224,7 +250,7 @@ namespace Serilog.Sinks.AzureDocumentDb
 
         private void InitializeParallelSink()
         {
-            _logEventsQueue = new BlockingCollection<ICollection<Data.LogEvent>>();
+            _logEventsQueue = new BlockingCollection<IList<LogEvent>>();
             _workerThreads = new List<Thread>();
 
             for (var i = 0; i < Environment.ProcessorCount; i++)
@@ -277,7 +303,7 @@ namespace Serilog.Sinks.AzureDocumentDb
 
                 _timerTask.Wait();
 
-                ICollection<Data.LogEvent> logEvents;
+                IList<LogEvent> logEvents;
 
                 while (_logEventsQueue.TryTake(out logEvents))
                 {
@@ -330,7 +356,8 @@ namespace Serilog.Sinks.AzureDocumentDb
             }
 
             _emitResetEvent.Wait();
-            _logEventBatch.Add(ConvertLogEventToDataEvent(logEvent));
+
+            _logEventBatch.Add(logEvent);
             if (_logEventBatch.Count < BatchSize)
             {
                 return;
