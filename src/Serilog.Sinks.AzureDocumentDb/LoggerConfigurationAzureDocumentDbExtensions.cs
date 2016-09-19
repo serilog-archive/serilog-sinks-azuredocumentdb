@@ -13,6 +13,7 @@
 // limitations under the License.
 
 using System;
+using Microsoft.Azure.Documents.Client;
 using Serilog.Configuration;
 using Serilog.Events;
 using Serilog.Sinks.AzureDocumentDb;
@@ -35,6 +36,7 @@ namespace Serilog
         /// <param name="restrictedToMinimumLevel">The minimum log event level required in order to write an event to the sink.</param>
         /// <param name="formatProvider">Supplies culture-specific formatting information, or null.</param>
         /// <param name="storeTimestampInUtc">Store Timestamp in UTC</param>
+        /// <param name="connectionProtocol">Specifies communication protocol used by driver to communicate with Azure DocumentDB services.</param>
         /// <exception cref="ArgumentNullException">A required parameter is null.</exception>
         public static LoggerConfiguration AzureDocumentDB(
             this LoggerSinkConfiguration loggerConfiguration,
@@ -44,14 +46,21 @@ namespace Serilog
             string collectionName = "Logs",
             LogEventLevel restrictedToMinimumLevel = LevelAlias.Minimum,
             IFormatProvider formatProvider = null,
-            bool storeTimestampInUtc = false)
+            bool storeTimestampInUtc = false,
+            Protocol connectionProtocol = Protocol.Https)
         {
             if (loggerConfiguration == null) throw new ArgumentNullException("loggerConfiguration");
             if (endpointUri == null) throw new ArgumentNullException("endpointUri");
             if (authorizationKey == null) throw new ArgumentNullException("authorizationKey");
             return loggerConfiguration.Sink(
-                new AzureDocumentDBSink(endpointUri, authorizationKey, databaseName, collectionName, formatProvider,
-                    storeTimestampInUtc),
+                new AzureDocumentDBSink(
+                    endpointUri,
+                    authorizationKey,
+                    databaseName,
+                    collectionName,
+                    formatProvider,
+                    storeTimestampInUtc,
+                    connectionProtocol),
                 restrictedToMinimumLevel);
         }
     }

@@ -47,7 +47,8 @@ namespace Serilog.Sinks.AzureDocumentDb
             string databaseName,
             string collectionName,
             IFormatProvider formatProvider,
-            bool storeTimestampInUtc)
+            bool storeTimestampInUtc,
+            Protocol connectionProtocol)
         {
             _endpointUri = endpointUri;
             _authorizationKey = authorizationKey;
@@ -56,8 +57,8 @@ namespace Serilog.Sinks.AzureDocumentDb
                 authorizationKey,
                 new ConnectionPolicy
                 {
-                    ConnectionMode = ConnectionMode.Gateway,
-                    ConnectionProtocol = Protocol.Https,
+                    ConnectionMode = connectionProtocol == Protocol.Https ? ConnectionMode.Gateway : ConnectionMode.Direct,
+                    ConnectionProtocol = connectionProtocol,
                     MaxConnectionLimit = Environment.ProcessorCount*50 + 200
                 });
 
