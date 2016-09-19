@@ -79,15 +79,13 @@ namespace Serilog.Sinks.AzureDocumentDb
                 return;
             }
 
-            _emitResetEvent.Wait();
-
             _logEventBatch.Add(logEvent);
             if (_logEventBatch.Count < BatchSize)
             {
                 return;
             }
-            _logEventsQueue.Add(_logEventBatch.ToArray());
-            _logEventBatch.Clear();
+
+            FlushLogEventBatch();
         }
 
         #endregion
@@ -181,7 +179,6 @@ namespace Serilog.Sinks.AzureDocumentDb
         private readonly List<LogEvent> _logEventBatch = new List<LogEvent>();
         private readonly CancellationTokenSource _cancelToken = new CancellationTokenSource();
         private readonly AutoResetEvent _timerResetEvent = new AutoResetEvent(false);
-        private readonly ManualResetEventSlim _emitResetEvent = new ManualResetEventSlim(true);
 
         private BlockingCollection<IList<LogEvent>> _logEventsQueue;
         private List<Thread> _workerThreads;
@@ -193,6 +190,15 @@ namespace Serilog.Sinks.AzureDocumentDb
                 new LogEventProperty("Timestamp",
                     new ScalarValue(logEvent.Timestamp.ToUniversalTime().ToString())));
             return logEvent;
+        }
+
+        private void FlushLogEventBatch()
+        {
+            lock (this)
+            {
+                _logEventsQueue.Add(_logEventBatch.ToArray());
+                _logEventBatch.Clear();
+            }
         }
 
         private void WriteLogEventBulk(IList<LogEvent> logEvents, string bulkStoredProcedureLink)
@@ -280,29 +286,16 @@ namespace Serilog.Sinks.AzureDocumentDb
                 _workerThreads.Add(thread);
             }
 
-            _timerTask = Task.Factory.StartNew(() =>
-            {
-                while (!_canStop)
-                {
-                    _timerResetEvent.WaitOne(TimeSpan.FromSeconds(30));
-                    _emitResetEvent.Reset();
-                    try
-                    {
-                        Task.Delay(250);
-                        if (_logEventBatch.Count <= 0)
-                        {
-                            continue;
-                        }
+            _timerTask = Task.Factory.StartNew(TimerPump);
+        }
 
-                        WriteLogEventBulk(_logEventBatch.ToArray(), _bulkStoredProcedureLink);
-                        _logEventBatch.Clear();
-                    }
-                    finally
-                    {
-                        _emitResetEvent.Set();
-                    }
-                }
-            });
+        private void TimerPump()
+        {
+            while (!_canStop)
+            {
+                _timerResetEvent.WaitOne(TimeSpan.FromSeconds(30));
+                FlushLogEventBatch();
+            }
         }
 
         private void Pump()
@@ -319,7 +312,6 @@ namespace Serilog.Sinks.AzureDocumentDb
             {
                 _canStop = true;
                 _timerResetEvent.Set();
-                _emitResetEvent.Set();
 
                 _timerTask.Wait();
 
