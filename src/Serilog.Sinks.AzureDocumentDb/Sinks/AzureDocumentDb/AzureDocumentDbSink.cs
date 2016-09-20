@@ -12,26 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Reflection;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-using Microsoft.Azure.Documents;
-using Microsoft.Azure.Documents.Client;
-using Newtonsoft.Json;
-using Serilog.Core;
-using Serilog.Debugging;
-using Serilog.Events;
-using Serilog.Formatting.Json;
-
 namespace Serilog.Sinks.AzureDocumentDb
 {
-    public class AzureDocumentDBSink : ILogEventSink, IDisposable
+    using System;
+    using System.Collections.Concurrent;
+    using System.Collections.Generic;
+    using System.IO;
+    using System.Linq;
+    using System.Reflection;
+    using System.Text;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using Microsoft.Azure.Documents;
+    using Microsoft.Azure.Documents.Client;
+    using Newtonsoft.Json;
+    using Serilog.Core;
+    using Serilog.Debugging;
+    using Serilog.Events;
+    using Serilog.Formatting.Json;
+
+    internal class AzureDocumentDBSink : ILogEventSink, IDisposable
     {
         private const string BulkStoredProcedureId = "BulkImport";
         private readonly DocumentClient _client;

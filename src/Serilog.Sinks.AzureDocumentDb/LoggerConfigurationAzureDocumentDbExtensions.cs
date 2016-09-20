@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-using System;
-using Microsoft.Azure.Documents.Client;
-using Serilog.Configuration;
-using Serilog.Events;
-using Serilog.Sinks.AzureDocumentDb;
-
 namespace Serilog
 {
+    using System;
+    using Microsoft.Azure.Documents.Client;
+    using Serilog.Configuration;
+    using Serilog.Events;
+    using Serilog.Sinks.AzureDocumentDb;
+
     /// <summary>
     ///     Adds the WriteTo.AzureDocumentDb() extension method to <see cref="LoggerConfiguration" />.
     /// </summary>
@@ -49,9 +49,9 @@ namespace Serilog
             bool storeTimestampInUtc = false,
             Protocol connectionProtocol = Protocol.Https)
         {
-            if (loggerConfiguration == null) throw new ArgumentNullException("loggerConfiguration");
-            if (endpointUri == null) throw new ArgumentNullException("endpointUri");
-            if (authorizationKey == null) throw new ArgumentNullException("authorizationKey");
+            if (loggerConfiguration == null) throw new ArgumentNullException(nameof(loggerConfiguration));
+            if (endpointUri == null) throw new ArgumentNullException(nameof(endpointUri));
+            if (authorizationKey == null) throw new ArgumentNullException(nameof(authorizationKey));
             return loggerConfiguration.Sink(
                 new AzureDocumentDBSink(
                     endpointUri,
