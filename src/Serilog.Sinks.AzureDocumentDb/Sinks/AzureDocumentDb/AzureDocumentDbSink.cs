@@ -26,16 +26,18 @@ namespace Serilog.Sinks.AzureDocumentDb
     using Microsoft.Azure.Documents;
     using Microsoft.Azure.Documents.Client;
     using Newtonsoft.Json;
-    using Serilog.Core;
-    using Serilog.Debugging;
-    using Serilog.Events;
-    using Serilog.Formatting.Json;
+    using Core;
+    using Debugging;
+    using Events;
+    using Formatting.Json;
 
     internal class AzureDocumentDBSink : ILogEventSink, IDisposable
     {
         private const string BulkStoredProcedureId = "BulkImport";
         private readonly DocumentClient _client;
         private readonly bool _storeTimestampInUtc;
+        private readonly int _timeToLive = -1;
+
         private string _authorizationKey;
         private string _bulkStoredProcedureLink;
         private DocumentCollection _collection;
@@ -48,10 +50,16 @@ namespace Serilog.Sinks.AzureDocumentDb
             string collectionName,
             IFormatProvider formatProvider,
             bool storeTimestampInUtc,
-            Protocol connectionProtocol)
+            Protocol connectionProtocol,
+            TimeSpan? timeToLive)
         {
             _endpointUri = endpointUri;
             _authorizationKey = authorizationKey;
+
+            if (timeToLive != null && timeToLive.Value != TimeSpan.MaxValue)
+            {
+                _timeToLive = (int)timeToLive.Value.TotalSeconds;
+            }
 
             _client = new DocumentClient(endpointUri,
                 authorizationKey,
@@ -112,7 +120,7 @@ namespace Serilog.Sinks.AzureDocumentDb
                     .FirstOrDefault();
             if (_collection == null)
             {
-                var documentCollection = new DocumentCollection {Id = collectionName};
+                var documentCollection = new DocumentCollection {Id = collectionName, DefaultTimeToLive = _timeToLive };
                 _collection = await _client.CreateDocumentCollectionAsync(_database.SelfLink, documentCollection)
                     .ConfigureAwait(false);
             }

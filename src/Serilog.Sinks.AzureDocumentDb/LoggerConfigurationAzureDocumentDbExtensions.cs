@@ -37,7 +37,10 @@ namespace Serilog
         /// <param name="formatProvider">Supplies culture-specific formatting information, or null.</param>
         /// <param name="storeTimestampInUtc">Store Timestamp in UTC</param>
         /// <param name="connectionProtocol">Specifies communication protocol used by driver to communicate with Azure DocumentDB services.</param>
+        /// <param name="timeToLive">The lifespan of documents (roughly 24855 days maximum). Set null to disable document expiration. </param>
         /// <exception cref="ArgumentNullException">A required parameter is null.</exception>
+        /// <exception cref="ArgumentOutOfRangeException">A required parameter value is out of acceptable range.</exception>
+
         public static LoggerConfiguration AzureDocumentDB(
             this LoggerSinkConfiguration loggerConfiguration,
             Uri endpointUri,
@@ -47,11 +50,17 @@ namespace Serilog
             LogEventLevel restrictedToMinimumLevel = LevelAlias.Minimum,
             IFormatProvider formatProvider = null,
             bool storeTimestampInUtc = false,
-            Protocol connectionProtocol = Protocol.Https)
+            Protocol connectionProtocol = Protocol.Https,
+            TimeSpan? timeToLive = null)
         {
             if (loggerConfiguration == null) throw new ArgumentNullException(nameof(loggerConfiguration));
             if (endpointUri == null) throw new ArgumentNullException(nameof(endpointUri));
             if (authorizationKey == null) throw new ArgumentNullException(nameof(authorizationKey));
+            if(timeToLive != null && timeToLive.Value > TimeSpan.FromDays(24855))
+            {
+                throw new ArgumentOutOfRangeException(nameof(timeToLive));
+            }
+
             return loggerConfiguration.Sink(
                 new AzureDocumentDBSink(
                     endpointUri,
@@ -60,7 +69,8 @@ namespace Serilog
                     collectionName,
                     formatProvider,
                     storeTimestampInUtc,
-                    connectionProtocol),
+                    connectionProtocol,
+                    timeToLive),
                 restrictedToMinimumLevel);
         }
     }
