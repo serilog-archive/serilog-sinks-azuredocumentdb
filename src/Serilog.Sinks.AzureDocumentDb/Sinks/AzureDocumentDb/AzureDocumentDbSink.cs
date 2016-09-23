@@ -20,16 +20,14 @@ namespace Serilog.Sinks.AzureDocumentDb
     using System.IO;
     using System.Linq;
     using System.Reflection;
-    using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
     using Microsoft.Azure.Documents;
     using Microsoft.Azure.Documents.Client;
-    using Newtonsoft.Json;
     using Core;
     using Debugging;
     using Events;
-    using Formatting.Json;
+    using Extensions;
 
     internal class AzureDocumentDBSink : ILogEventSink, IDisposable
     {
@@ -67,11 +65,10 @@ namespace Serilog.Sinks.AzureDocumentDb
                 {
                     ConnectionMode = connectionProtocol == Protocol.Https ? ConnectionMode.Gateway : ConnectionMode.Direct,
                     ConnectionProtocol = connectionProtocol,
-                    MaxConnectionLimit = Environment.ProcessorCount*50 + 200
+                    MaxConnectionLimit = Environment.ProcessorCount * 50 + 200
                 });
 
             _storeTimestampInUtc = storeTimestampInUtc;
-            _jsonFormater = new JsonFormatter(formatProvider: formatProvider);
 
             CreateDatabaseIfNotExistsAsync(databaseName).Wait();
             CreateCollectionIfNotExistsAsync(collectionName).Wait();
@@ -102,13 +99,13 @@ namespace Serilog.Sinks.AzureDocumentDb
         private async Task CreateDatabaseIfNotExistsAsync(string databaseName)
         {
             await _client.OpenAsync();
-            _database = _client.CreateDatabaseQuery().Where(x => x.Id == databaseName).AsEnumerable().FirstOrDefault();
-
-            if (_database == null)
-            {
-                _database = await _client.CreateDatabaseAsync(new Database {Id = databaseName})
-                    .ConfigureAwait(false);
-            }
+            _database = _client
+                .CreateDatabaseQuery()
+                .Where(x => x.Id == databaseName)
+                .AsEnumerable()
+                .FirstOrDefault() ?? await _client
+                .CreateDatabaseAsync(new Database { Id = databaseName })
+                .ConfigureAwait(false);
         }
 
         private async Task CreateCollectionIfNotExistsAsync(string collectionName)
@@ -120,7 +117,7 @@ namespace Serilog.Sinks.AzureDocumentDb
                     .FirstOrDefault();
             if (_collection == null)
             {
-                var documentCollection = new DocumentCollection {Id = collectionName, DefaultTimeToLive = _timeToLive };
+                var documentCollection = new DocumentCollection { Id = collectionName, DefaultTimeToLive = _timeToLive };
                 _collection = await _client.CreateDocumentCollectionAsync(_database.SelfLink, documentCollection)
                     .ConfigureAwait(false);
             }
@@ -182,7 +179,6 @@ namespace Serilog.Sinks.AzureDocumentDb
         private long _operationCount;
         private volatile bool _canStop;
         private string _collectionLink;
-        private readonly JsonFormatter _jsonFormater;
 
         private readonly Mutex _exceptionMut = new Mutex();
         private readonly List<LogEvent> _logEventBatch = new List<LogEvent>();
@@ -192,14 +188,6 @@ namespace Serilog.Sinks.AzureDocumentDb
         private BlockingCollection<IList<LogEvent>> _logEventsQueue;
         private List<Thread> _workerThreads;
         private Task _timerTask;
-
-        private LogEvent ConvertTimestampToUtc(LogEvent logEvent)
-        {
-            logEvent.AddOrUpdateProperty(
-                new LogEventProperty("Timestamp",
-                    new ScalarValue(logEvent.Timestamp.ToUniversalTime().ToString())));
-            return logEvent;
-        }
 
         private void FlushLogEventBatch()
         {
@@ -217,29 +205,7 @@ namespace Serilog.Sinks.AzureDocumentDb
                 return;
             }
 
-            var jsonBuilder = new StringBuilder();
-            var stringWriter = new StringWriter(jsonBuilder);
-            jsonBuilder.Append("[");
-
-            if (_storeTimestampInUtc)
-            {
-                logEvents[0] = ConvertTimestampToUtc(logEvents[0]);
-            }
-            _jsonFormater.Format(logEvents[0], stringWriter);
-
-            for (var i = 1; i < logEvents.Count; i++)
-            {
-                jsonBuilder.Append(",");
-                if (_storeTimestampInUtc)
-                {
-                    logEvents[i] = ConvertTimestampToUtc(logEvents[i]);
-                }
-                _jsonFormater.Format(logEvents[i], stringWriter);
-            }
-
-            jsonBuilder.Append("]");
-
-            var args = JsonConvert.DeserializeObject(jsonBuilder.ToString());
+            var args = logEvents.Select(x => x.Object(_storeTimestampInUtc));
 
             try
             {
@@ -250,13 +216,13 @@ namespace Serilog.Sinks.AzureDocumentDb
                 var exception = e.InnerException as DocumentClientException;
                 if (exception != null)
                 {
-                    var ei = (DocumentClientException) e.InnerException;
+                    var ei = (DocumentClientException)e.InnerException;
                     try
                     {
                         _exceptionMut.WaitOne();
 
                         if (ei.StatusCode != null)
-                            switch ((int) ei.StatusCode)
+                            switch ((int)ei.StatusCode)
                             {
                                 case 429:
                                     SelfLog.WriteLine("Waiting for {0} ms.", ei.RetryAfter.Milliseconds);
@@ -290,7 +256,7 @@ namespace Serilog.Sinks.AzureDocumentDb
 
             for (var i = 0; i < Environment.ProcessorCount; i++)
             {
-                var thread = new Thread(Pump) {IsBackground = true, Priority = ThreadPriority.AboveNormal};
+                var thread = new Thread(Pump) { IsBackground = true, Priority = ThreadPriority.AboveNormal };
                 thread.Start();
                 _workerThreads.Add(thread);
             }
@@ -333,7 +299,7 @@ namespace Serilog.Sinks.AzureDocumentDb
             }
             catch (Exception ex)
             {
-                SelfLog.WriteLine("{0} fatal error in worker thread: {1}", typeof (AzureDocumentDBSink), ex);
+                SelfLog.WriteLine("{0} fatal error in worker thread: {1}", typeof(AzureDocumentDBSink), ex);
             }
         }
 

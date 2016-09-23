@@ -16,9 +16,9 @@ namespace Serilog
 {
     using System;
     using Microsoft.Azure.Documents.Client;
-    using Serilog.Configuration;
-    using Serilog.Events;
-    using Serilog.Sinks.AzureDocumentDb;
+    using Configuration;
+    using Events;
+    using Sinks.AzureDocumentDb;
 
     /// <summary>
     ///     Adds the WriteTo.AzureDocumentDb() extension method to <see cref="LoggerConfiguration" />.
