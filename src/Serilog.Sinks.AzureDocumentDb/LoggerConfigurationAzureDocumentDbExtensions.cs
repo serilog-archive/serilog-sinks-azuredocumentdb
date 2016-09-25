@@ -12,20 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-using System;
-using Serilog.Configuration;
-using Serilog.Events;
-using Serilog.Sinks.AzureDocumentDb;
-
 namespace Serilog
 {
+    using System;
+    using Microsoft.Azure.Documents.Client;
+    using Configuration;
+    using Events;
+    using Sinks.AzureDocumentDb;
+
     /// <summary>
-    /// Adds the WriteTo.AzureDocumentDb() extension method to <see cref="LoggerConfiguration"/>.
+    ///     Adds the WriteTo.AzureDocumentDb() extension method to <see cref="LoggerConfiguration" />.
     /// </summary>
     public static class LoggerConfigurationAzureDocumentDBExtensions
     {
         /// <summary>
-        /// Adds a sink that writes log events to a Azure DocumentDB table in the provided endpoint.
+        ///     Adds a sink that writes log events to a Azure DocumentDB table in the provided endpoint.
         /// </summary>
         /// <param name="loggerConfiguration">The logger configuration.</param>
         /// <param name="endpointUri">The endpoint URI of the document db.</param>
@@ -35,7 +36,11 @@ namespace Serilog
         /// <param name="restrictedToMinimumLevel">The minimum log event level required in order to write an event to the sink.</param>
         /// <param name="formatProvider">Supplies culture-specific formatting information, or null.</param>
         /// <param name="storeTimestampInUtc">Store Timestamp in UTC</param>
+        /// <param name="connectionProtocol">Specifies communication protocol used by driver to communicate with Azure DocumentDB services.</param>
+        /// <param name="timeToLive">The lifespan of documents (roughly 24855 days maximum). Set null to disable document expiration. </param>
         /// <exception cref="ArgumentNullException">A required parameter is null.</exception>
+        /// <exception cref="ArgumentOutOfRangeException">A required parameter value is out of acceptable range.</exception>
+
         public static LoggerConfiguration AzureDocumentDB(
             this LoggerSinkConfiguration loggerConfiguration,
             Uri endpointUri,
@@ -44,13 +49,28 @@ namespace Serilog
             string collectionName = "Logs",
             LogEventLevel restrictedToMinimumLevel = LevelAlias.Minimum,
             IFormatProvider formatProvider = null,
-            bool storeTimestampInUtc = false)
+            bool storeTimestampInUtc = false,
+            Protocol connectionProtocol = Protocol.Https,
+            TimeSpan? timeToLive = null)
         {
-            if (loggerConfiguration == null) throw new ArgumentNullException("loggerConfiguration");
-            if (endpointUri == null) throw new ArgumentNullException("endpointUri");
-            if (authorizationKey == null) throw new ArgumentNullException("authorizationKey");
+            if (loggerConfiguration == null) throw new ArgumentNullException(nameof(loggerConfiguration));
+            if (endpointUri == null) throw new ArgumentNullException(nameof(endpointUri));
+            if (authorizationKey == null) throw new ArgumentNullException(nameof(authorizationKey));
+            if(timeToLive != null && timeToLive.Value > TimeSpan.FromDays(24855))
+            {
+                throw new ArgumentOutOfRangeException(nameof(timeToLive));
+            }
+
             return loggerConfiguration.Sink(
-                new AzureDocumentDBSink(endpointUri, authorizationKey, databaseName, collectionName, formatProvider, storeTimestampInUtc),
+                new AzureDocumentDBSink(
+                    endpointUri,
+                    authorizationKey,
+                    databaseName,
+                    collectionName,
+                    formatProvider,
+                    storeTimestampInUtc,
+                    connectionProtocol,
+                    timeToLive),
                 restrictedToMinimumLevel);
         }
     }
