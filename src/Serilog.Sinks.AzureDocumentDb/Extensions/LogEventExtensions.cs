@@ -52,7 +52,22 @@ namespace Serilog.Extensions
             eventObject.Add("Level", logEvent.Level.ToString());
             eventObject.Add("MessageTemplate", logEvent.MessageTemplate.ToString());
             eventObject.Add("Exception", logEvent.Exception);
-            eventObject.Add("Properties", logEvent.Properties.Dictionary());
+
+            var eventProperties = logEvent.Properties.Dictionary();
+            eventObject.Add("Properties", eventProperties);
+
+            if (eventProperties.Keys.Contains("_ttl"))
+            {
+                var ttlValue = 0;
+                if (int.TryParse(eventProperties["_ttl"].ToString(), out ttlValue))
+                {
+                    if(ttlValue < 0)
+                    {
+                        ttlValue = -1;
+                    }
+                    eventObject.Add("ttl", ttlValue);
+                }
+            }
 
             return eventObject;
         }

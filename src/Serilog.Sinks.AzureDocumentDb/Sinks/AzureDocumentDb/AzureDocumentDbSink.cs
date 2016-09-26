@@ -212,7 +212,10 @@ namespace Serilog.Sinks.AzureDocumentDb
             {
                 args = args.Select(x =>
                 {
-                    x.Add("ttl", _timeToLive);
+                    if (!x.Keys.Contains("ttl"))
+                    {
+                        x.Add("ttl", _timeToLive);
+                    }
                     return x;
                 });
             }
