@@ -28,14 +28,13 @@ namespace Serilog.Sinks.AzureDocumentDb
     using Debugging;
     using Events;
     using Extensions;
-    using System.Dynamic;
 
     internal class AzureDocumentDBSink : ILogEventSink, IDisposable
     {
         private const string BulkStoredProcedureId = "BulkImport";
         private readonly DocumentClient _client;
         private readonly bool _storeTimestampInUtc;
-        private readonly int? _timeToLive = null;
+        private readonly int? _timeToLive;
 
         private string _authorizationKey;
         private string _bulkStoredProcedureLink;

@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Dynamic;
 using System.Linq;
-using Microsoft.Azure.Documents;
 using Newtonsoft.Json;
 using Serilog.Events;
 
@@ -25,7 +24,8 @@ namespace Serilog.Extensions
             return JsonConvert.SerializeObject(ConvertToDictionary(properties));
         }
 
-        public static IDictionary<string, object> Dictionary(this IReadOnlyDictionary<string, LogEventPropertyValue> properties)
+        public static IDictionary<string, object> Dictionary(
+            this IReadOnlyDictionary<string, LogEventPropertyValue> properties)
         {
             return ConvertToDictionary(properties);
         }
@@ -36,9 +36,7 @@ namespace Serilog.Extensions
         {
             var expObject = new ExpandoObject() as IDictionary<string, object>;
             foreach (var property in properties)
-            {
                 expObject.Add(property.Key, Simplify(property.Value));
-            }
             return expObject;
         }
 
@@ -46,8 +44,8 @@ namespace Serilog.Extensions
         {
             var eventObject = new ExpandoObject() as IDictionary<string, object>;
             eventObject.Add("Timestamp", storeTimestampInUtc
-                    ? logEvent.Timestamp.ToUniversalTime().ToString("o")
-                    : logEvent.Timestamp.ToString("o"));
+                ? logEvent.Timestamp.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss.fffzzz")
+                : logEvent.Timestamp.ToString("yyyy-MM-dd HH:mm:ss.fffzzz"));
 
             eventObject.Add("Level", logEvent.Level.ToString());
             eventObject.Add("MessageTemplate", logEvent.MessageTemplate.ToString());
@@ -56,18 +54,16 @@ namespace Serilog.Extensions
             var eventProperties = logEvent.Properties.Dictionary();
             eventObject.Add("Properties", eventProperties);
 
-            if (eventProperties.Keys.Contains("_ttl"))
-            {
-                var ttlValue = 0;
-                if (int.TryParse(eventProperties["_ttl"].ToString(), out ttlValue))
-                {
-                    if(ttlValue < 0)
-                    {
-                        ttlValue = -1;
-                    }
-                    eventObject.Add("ttl", ttlValue);
-                }
-            }
+            if (!eventProperties.Keys.Contains("_ttl"))
+                return eventObject;
+
+            int ttlValue;
+            if (!int.TryParse(eventProperties["_ttl"].ToString(), out ttlValue))
+                return eventObject;
+
+            if (ttlValue < 0)
+                ttlValue = -1;
+            eventObject.Add("ttl", ttlValue);
 
             return eventObject;
         }
