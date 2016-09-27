@@ -1,0 +1,15 @@
+{
+  "version": "1.0.0-*",
+  "buildOptions": {
+    "debugType": "portable",
+    "outputName": "Serilog.Sinks.AzureDocumentDB"
+  },
+  "dependencies": {
+    "Microsoft.Azure.DocumentDB": "1.9.5",
+    "Serilog": "2.2.1"
+  },
+  "frameworks": {
+    "net45": {
+    }
+  }
+}
