@@ -2,26 +2,15 @@
 using System.Collections.Generic;
 using System.Dynamic;
 using System.Linq;
-using Newtonsoft.Json;
 using Serilog.Events;
 
 namespace Serilog.Extensions
 {
     public static class LogEventExtensions
     {
-        public static string Json(this LogEvent logEvent, bool storeTimestampInUtc = false)
-        {
-            return JsonConvert.SerializeObject(ConvertToDictionary(logEvent, storeTimestampInUtc));
-        }
-
         public static IDictionary<string, object> Dictionary(this LogEvent logEvent, bool storeTimestampInUtc = false)
         {
             return ConvertToDictionary(logEvent, storeTimestampInUtc);
-        }
-
-        public static string Json(this IReadOnlyDictionary<string, LogEventPropertyValue> properties)
-        {
-            return JsonConvert.SerializeObject(ConvertToDictionary(properties));
         }
 
         public static IDictionary<string, object> Dictionary(
