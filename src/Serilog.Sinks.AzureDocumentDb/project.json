@@ -27,6 +27,6 @@
         "Serilog": "2.2.1"
     },
     "frameworks": {
-        "net451": {}
+        "net452": {}
     }
 }
