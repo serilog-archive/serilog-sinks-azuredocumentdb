@@ -14,12 +14,12 @@
 
     for (var i = 0; i < docsLength; i++) {
         var accepted = collection.createDocument(collection.getSelfLink(),
-          docs[i],
-          function (err, documentCreated) {
-              if (!err) {
-                  count++;
-              }
-          });
+            docs[i],
+            function(err, documentCreated) {
+                if (!err) {
+                    count++;
+                }
+            });
         if (!accepted) break;
     }
 
