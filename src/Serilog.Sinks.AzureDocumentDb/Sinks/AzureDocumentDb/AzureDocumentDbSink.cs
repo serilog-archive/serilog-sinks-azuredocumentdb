@@ -34,7 +34,7 @@ namespace Serilog.Sinks.AzureDocumentDb
         private const string BulkStoredProcedureId = "BulkImport";
         private readonly DocumentClient _client;
         private readonly bool _storeTimestampInUtc;
-        private readonly int _timeToLive = -1;
+        private readonly int? _timeToLive;
 
         private string _authorizationKey;
         private string _bulkStoredProcedureLink;
@@ -117,7 +117,7 @@ namespace Serilog.Sinks.AzureDocumentDb
                     .FirstOrDefault();
             if (_collection == null)
             {
-                var documentCollection = new DocumentCollection { Id = collectionName, DefaultTimeToLive = _timeToLive };
+                var documentCollection = new DocumentCollection { Id = collectionName, DefaultTimeToLive = -1 };
                 _collection = await _client.CreateDocumentCollectionAsync(_database.SelfLink, documentCollection)
                     .ConfigureAwait(false);
             }
@@ -205,7 +205,19 @@ namespace Serilog.Sinks.AzureDocumentDb
                 return;
             }
 
-            var args = logEvents.Select(x => x.Object(_storeTimestampInUtc));
+            var args = logEvents.Select(x => x.Dictionary());
+
+            if (_timeToLive != null && _timeToLive > 0)
+            {
+                args = args.Select(x =>
+                {
+                    if (!x.Keys.Contains("ttl"))
+                    {
+                        x.Add("ttl", _timeToLive);
+                    }
+                    return x;
+                });
+            }
 
             try
             {
