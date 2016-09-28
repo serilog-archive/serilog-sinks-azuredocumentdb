@@ -128,7 +128,9 @@ namespace Serilog.Sinks.AzureDocumentDb
         private async Task CreateBulkImportStoredProcedure(IDocumentClient client, bool dropExistingProc = false)
         {
             var currentAssembly = Assembly.GetExecutingAssembly();
-            const string resourceName = "Serilog.Sinks.AzureDocumentDB.bulkImport.js";
+
+            var resourceName =
+                currentAssembly.GetManifestResourceNames().FirstOrDefault(w => w.EndsWith("bulkImport.js"));
 
             using (var resourceStream = currentAssembly.GetManifestResourceStream(resourceName))
             {
