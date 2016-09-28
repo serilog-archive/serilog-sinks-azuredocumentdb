@@ -1,29 +1,32 @@
 {
-  "version": "3.1.1-*",
-  "description": "Serilog event sink that writes to Azure DocumentDb",
-  "authors": [
-    "Serilog Contributors"
-  ],
-  "packOptions": {
-    "tags": [
-      "serilog",
-      "logging",
-      "semantic",
-      "structured"
+    "title": "Serilog.Sinks.AzureDocumentDB",
+    "version": "3.1.1-*",
+    "description": "Serilog event sink that writes to Azure DocumentDb",
+    "authors": [
+        "Serilog Contributors"
     ],
-    "projectUrl": "http://serilog.net",
-    "licenseUrl": "http://www.apache.org/licenses/LICENSE-2.0",
-    "iconUrl": "http://serilog.net/images/serilog-sink-nuget.png"
-  },
-  "buildOptions": {
-    "debugType": "portable",
-    "outputName": "Serilog.Sinks.AzureDocumentDB"
-  },
-  "dependencies": {
-    "Microsoft.Azure.DocumentDB": "1.9.5",
-    "Serilog": "2.2.1"
-  },
-  "frameworks": {
-    "net45": {}
-  }
+    "packOptions": {
+        "tags": [
+            "serilog",
+            "logging",
+            "semantic",
+            "structured"
+        ],
+        "projectUrl": "http://serilog.net",
+        "licenseUrl": "http://www.apache.org/licenses/LICENSE-2.0",
+        "iconUrl": "http://serilog.net/images/serilog-sink-nuget.png"
+    },
+    "buildOptions": {
+        "debugType": "portable",
+        "outputName": "Serilog.Sinks.AzureDocumentDB",
+        "optimize": true,
+        "embed": [ "/**/bulkImport.js" ]
+    },
+    "dependencies": {
+        "Microsoft.Azure.DocumentDB": "1.9.5",
+        "Serilog": "2.2.1"
+    },
+    "frameworks": {
+        "net451": {}
+    }
 }
