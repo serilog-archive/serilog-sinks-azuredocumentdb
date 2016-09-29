@@ -73,7 +73,7 @@ In your application's App.config or Web.config file, specify the DocumentDB sink
   <add key="serilog:write-to:AzureDocumentDB.authorizationKey" value="****" />
     
   <!-- Liefspan of log messages in DocumentDB in seconds, leave empty to disable expiration. -->
-  <add key="serilog:write-to:AzureDocumentDB.storeTimestampInUtc" value="60" />
+  <add key="serilog:write-to:AzureDocumentDB.timeToLive" value="60" />
 </appSettings>
 ```
 
@@ -81,5 +81,4 @@ In your application's App.config or Web.config file, specify the DocumentDB sink
 Sink buffers log internally and flush to Azure DocumentDB in batches using dedicated thread. However, it highly depends on type of Azure DocumentDB subscription you have. 
 
 
-[![Build status](https://ci.appveyor.com/api/projects/status/p9elqjetu6vsnmxw/branch/master?svg=true)](https://ci.appveyor.com/project/serilog/serilog-sinks-azuredocumentdb/branch/master)
-
+[![Build status](https://ci.appveyor.com/api/projects/status/schh1be3g817cv3u?svg=true)](https://ci.appveyor.com/project/SaleemMirza/serilog-sinks-azuredocumentdb)
