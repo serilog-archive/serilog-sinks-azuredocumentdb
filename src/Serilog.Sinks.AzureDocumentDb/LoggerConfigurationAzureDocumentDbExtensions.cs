@@ -25,6 +25,7 @@ namespace Serilog
     /// </summary>
     public static class LoggerConfigurationAzureDocumentDBExtensions
     {
+        
         /// <summary>
         ///     Adds a sink that writes log events to a Azure DocumentDB table in the provided endpoint.
         /// </summary>
@@ -40,7 +41,7 @@ namespace Serilog
         /// <param name="timeToLive">The lifespan of documents (roughly 24855 days maximum). Set null to disable document expiration. </param>
         /// <exception cref="ArgumentNullException">A required parameter is null.</exception>
         /// <exception cref="ArgumentOutOfRangeException">A required parameter value is out of acceptable range.</exception>
-
+        
         public static LoggerConfiguration AzureDocumentDB(
             this LoggerSinkConfiguration loggerConfiguration,
             Uri endpointUri,
@@ -71,6 +72,62 @@ namespace Serilog
                     storeTimestampInUtc,
                     connectionProtocol,
                     timeToLive),
+                restrictedToMinimumLevel);
+        }
+        
+
+        /// <summary>
+        ///     Adds a sink that writes log events to a Azure DocumentDB table in the provided endpoint.
+        /// </summary>
+        /// <param name="loggerConfiguration">The logger configuration.</param>
+        /// <param name="endpointUrl">The endpoint url of the document db.</param>
+        /// <param name="authorizationKey">The authorization key of the db.</param>
+        /// <param name="databaseName">The name of the database to use; will create if it doesn't exist.</param>
+        /// <param name="collectionName">The name of the collection to use inside the database; will created if it doesn't exist.</param>
+        /// <param name="restrictedToMinimumLevel">The minimum log event level required in order to write an event to the sink.</param>
+        /// <param name="formatProvider">Supplies culture-specific formatting information, or null.</param>
+        /// <param name="storeTimestampInUtc">Store Timestamp in UTC</param>
+        /// <param name="connectionProtocol">Specifies communication protocol used by driver to communicate with Azure DocumentDB services. Values can be either https or Tcp</param>
+        /// <param name="timeToLive">The lifespan of documents in seconds. Set null to disable document expiration. </param>
+        /// <exception cref="ArgumentNullException">A required parameter is null.</exception>
+        /// <exception cref="ArgumentOutOfRangeException">A required parameter value is out of acceptable range.</exception>
+
+        public static LoggerConfiguration AzureDocumentDB(
+            this LoggerSinkConfiguration loggerConfiguration,
+            string endpointUrl,
+            string authorizationKey,
+            string databaseName = "Diagnostics",
+            string collectionName = "Logs",
+            LogEventLevel restrictedToMinimumLevel = LevelAlias.Minimum,
+            IFormatProvider formatProvider = null,
+            bool storeTimestampInUtc = false,
+            string connectionProtocol = "https",
+            int? timeToLive = null)
+        {
+            if (loggerConfiguration == null) throw new ArgumentNullException(nameof(loggerConfiguration));
+            if (string.IsNullOrWhiteSpace(endpointUrl)) throw new ArgumentNullException(nameof(endpointUrl));
+            if (authorizationKey == null) throw new ArgumentNullException(nameof(authorizationKey));
+            if (timeToLive != null && timeToLive.Value > TimeSpan.FromDays(24855).TotalSeconds)
+            {
+                throw new ArgumentOutOfRangeException(nameof(timeToLive));
+            }
+
+            TimeSpan? timeSpan = null;
+            if(timeToLive != null)
+            {
+                timeSpan = TimeSpan.FromSeconds(Math.Max(-1,timeToLive.Value));
+            }
+
+            return loggerConfiguration.Sink(
+                new AzureDocumentDBSink(
+                    new Uri(endpointUrl),
+                    authorizationKey,
+                    databaseName,
+                    collectionName,
+                    formatProvider,
+                    storeTimestampInUtc,
+                    connectionProtocol?.ToUpper() == "TCP"? Protocol.Tcp: Protocol.Https,
+                    timeSpan),
                 restrictedToMinimumLevel);
         }
     }
