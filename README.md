@@ -81,4 +81,4 @@ In your application's App.config or Web.config file, specify the DocumentDB sink
 Sink buffers log internally and flush to Azure DocumentDB in batches using dedicated thread. However, it highly depends on type of Azure DocumentDB subscription you have. 
 
 
-[![Build status](https://ci.appveyor.com/api/projects/status/schh1be3g817cv3u?svg=true)](https://ci.appveyor.com/project/SaleemMirza/serilog-sinks-azuredocumentdb)
+[![Build status](https://ci.appveyor.com/api/projects/status/schh1be3g817cv3u/branch/dev?svg=true)](https://ci.appveyor.com/project/SaleemMirza/serilog-sinks-azuredocumentdb/branch/dev)
