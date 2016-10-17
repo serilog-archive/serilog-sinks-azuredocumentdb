@@ -1,6 +1,6 @@
 {
     "title": "Serilog.Sinks.AzureDocumentDB",
-    "version": "3.2.1-*",
+    "version": "3.2.5-*",
     "description": "Serilog event sink that writes to Azure DocumentDb",
     "authors": [
         "Serilog Contributors"

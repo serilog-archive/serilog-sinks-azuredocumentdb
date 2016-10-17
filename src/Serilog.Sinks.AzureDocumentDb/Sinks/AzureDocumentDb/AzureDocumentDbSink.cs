@@ -35,6 +35,7 @@ namespace Serilog.Sinks.AzureDocumentDb
         private readonly DocumentClient _client;
         private readonly bool _storeTimestampInUtc;
         private readonly int? _timeToLive;
+        private readonly IFormatProvider _formatProvider;
 
         private string _authorizationKey;
         private string _bulkStoredProcedureLink;
@@ -53,6 +54,7 @@ namespace Serilog.Sinks.AzureDocumentDb
         {
             _endpointUri = endpointUri;
             _authorizationKey = authorizationKey;
+            _formatProvider = formatProvider;
 
             if (timeToLive != null && timeToLive.Value != TimeSpan.MaxValue)
             {
@@ -207,7 +209,7 @@ namespace Serilog.Sinks.AzureDocumentDb
                 return;
             }
 
-            var args = logEvents.Select(x => x.Dictionary());
+            var args = logEvents.Select(x => x.Dictionary(storeTimestampInUtc: _storeTimestampInUtc, formatProvider: _formatProvider));
 
             if (_timeToLive != null && _timeToLive > 0)
             {

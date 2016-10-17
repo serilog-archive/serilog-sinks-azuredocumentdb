@@ -52,7 +52,7 @@ See [TTL behavior](https://azure.microsoft.com/en-us/documentation/articles/docu
 
 ## XML <appSettings> configuration
 
-To use the rolling file sink with the [Serilog.Settings.AppSettings](https://www.nuget.org/packages/Serilog.Settings.AppSettings) package, first install that package if you haven't already done so:
+To use the AzureDocumentDB sink with the [Serilog.Settings.AppSettings](https://www.nuget.org/packages/Serilog.Settings.AppSettings) package, first install that package if you haven't already done so:
 
 ```PowerShell
 Install-Package Serilog.Settings.AppSettings
