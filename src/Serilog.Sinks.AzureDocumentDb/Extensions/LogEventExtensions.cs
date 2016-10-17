@@ -8,9 +8,9 @@ namespace Serilog.Extensions
 {
     public static class LogEventExtensions
     {
-        public static IDictionary<string, object> Dictionary(this LogEvent logEvent, bool storeTimestampInUtc = false)
+        public static IDictionary<string, object> Dictionary(this LogEvent logEvent, bool storeTimestampInUtc = false, IFormatProvider formatProvider = null)
         {
-            return ConvertToDictionary(logEvent, storeTimestampInUtc);
+            return ConvertToDictionary(logEvent, storeTimestampInUtc, formatProvider);
         }
 
         public static IDictionary<string, object> Dictionary(
@@ -29,7 +29,7 @@ namespace Serilog.Extensions
             return expObject;
         }
 
-        private static dynamic ConvertToDictionary(LogEvent logEvent, bool storeTimestampInUtc)
+        private static dynamic ConvertToDictionary(LogEvent logEvent, bool storeTimestampInUtc, IFormatProvider formatProvider)
         {
             var eventObject = new ExpandoObject() as IDictionary<string, object>;
             eventObject.Add("Timestamp", storeTimestampInUtc
@@ -37,7 +37,7 @@ namespace Serilog.Extensions
                 : logEvent.Timestamp.ToString("yyyy-MM-dd HH:mm:ss.fffzzz"));
 
             eventObject.Add("Level", logEvent.Level.ToString());
-            eventObject.Add("MessageTemplate", logEvent.MessageTemplate.ToString());
+            eventObject.Add("Message", logEvent.RenderMessage(formatProvider));
             eventObject.Add("Exception", logEvent.Exception);
 
             var eventProperties = logEvent.Properties.Dictionary();
