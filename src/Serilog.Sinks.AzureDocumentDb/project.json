@@ -1,6 +1,6 @@
 {
     "title": "Serilog.Sinks.AzureDocumentDB",
-    "version": "3.2.5-*",
+    "version": "3.3.2-*",
     "description": "Serilog event sink that writes to Azure DocumentDb",
     "authors": [
         "Serilog Contributors"
@@ -20,7 +20,7 @@
         "debugType": "portable",
         "outputName": "Serilog.Sinks.AzureDocumentDB",
         "optimize": true,
-        "embed": [ "/**/bulkImport.js" ]
+        "embed": ["/**/bulkImport.js"]
     },
     "dependencies": {
         "Microsoft.Azure.DocumentDB": "1.9.5",
