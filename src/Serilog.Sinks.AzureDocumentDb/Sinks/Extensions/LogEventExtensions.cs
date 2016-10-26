@@ -48,12 +48,15 @@ namespace Serilog.Sinks.Extensions
             IFormatProvider formatProvider)
         {
             var eventObject = new ExpandoObject() as IDictionary<string, object>;
+
+            eventObject.Add("EventIdHash", ComputeMessageTemplateHash(logEvent.MessageTemplate.Text));
             eventObject.Add("Timestamp", storeTimestampInUtc
                 ? logEvent.Timestamp.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss.fffzzz")
                 : logEvent.Timestamp.ToString("yyyy-MM-dd HH:mm:ss.fffzzz"));
 
             eventObject.Add("Level", logEvent.Level.ToString());
             eventObject.Add("Message", logEvent.RenderMessage(formatProvider));
+            eventObject.Add("MessageTemplate", logEvent.MessageTemplate.Text);
             eventObject.Add("Exception", logEvent.Exception);
 
             var eventProperties = logEvent.Properties.Dictionary();
@@ -118,6 +121,34 @@ namespace Serilog.Sinks.Extensions
             }
 
             return null;
+        }
+
+        /// <summary>
+        ///     ComputMessageTemplateHash a 32-bit hash of the provided <paramref name="messageTemplate" />. The
+        ///     resulting hash value can be uses as an event id in lieu of transmitting the
+        ///     full template string.
+        /// </summary>
+        /// <param name="messageTemplate">A message template.</param>
+        /// <returns>A 32-bit hash of the template.</returns>
+        private static uint ComputeMessageTemplateHash(string messageTemplate)
+        {
+            if (messageTemplate == null) throw new ArgumentNullException(nameof(messageTemplate));
+
+            // Jenkins one-at-a-time https://en.wikipedia.org/wiki/Jenkins_hash_function
+            unchecked
+            {
+                uint hash = 0;
+                for (var i = 0; i < messageTemplate.Length; ++i)
+                {
+                    hash += messageTemplate[i];
+                    hash += hash << 10;
+                    hash ^= hash >> 6;
+                }
+                hash += hash << 3;
+                hash ^= hash >> 11;
+                hash += hash << 15;
+                return hash;
+            }
         }
 
         #endregion
