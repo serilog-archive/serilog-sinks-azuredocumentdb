@@ -52,7 +52,7 @@ namespace Serilog.Sinks.AzureDocumentDb
             IFormatProvider formatProvider,
             bool storeTimestampInUtc,
             Protocol connectionProtocol,
-            TimeSpan? timeToLive) : base(batchSize:300, nThreads: Environment.ProcessorCount)
+            TimeSpan? timeToLive) : base(batchSize:250, nThreads: Environment.ProcessorCount)
         {
             _endpointUri = endpointUri;
             _authorizationKey = authorizationKey;
@@ -173,6 +173,7 @@ namespace Serilog.Sinks.AzureDocumentDb
 
             try
             {
+                SelfLog.WriteLine($"Sending batch of {logEventsBatch.Count} messages to DocumentDB");
                 _client.ExecuteStoredProcedureAsync<int>(_bulkStoredProcedureLink, args).Wait();
             }
             catch (AggregateException e)
@@ -189,18 +190,18 @@ namespace Serilog.Sinks.AzureDocumentDb
                             switch ((int) ei.StatusCode)
                             {
                                 case 429:
-                                    SelfLog.WriteLine("Waiting for {0} ms.", ei.RetryAfter.Milliseconds);
-                                    Task.Delay(ei.RetryAfter);
+                                    SelfLog.WriteLine("Request rate is higher than subscription throughput. Waiting for {0} ms.", ei.RetryAfter.Milliseconds);
+                                    Thread.Sleep(ei.RetryAfter.Milliseconds);
                                     break;
                                 default:
                                     CreateBulkImportStoredProcedure(_client, true).Wait();
                                     break;
                             }
-                        _client.ExecuteStoredProcedureAsync<int>(_bulkStoredProcedureLink, args).Wait();
                     }
                     finally
                     {
                         _exceptionMut.ReleaseMutex();
+                        _client.ExecuteStoredProcedureAsync<int>(_bulkStoredProcedureLink, args).Wait();
                     }
                 }
             }
