@@ -66,10 +66,17 @@ namespace Serilog.Sinks.Extensions
                 return eventObject;
 
             int ttlValue;
-            if (!int.TryParse(eventProperties["_ttl"].ToString(), out ttlValue))
-                return eventObject;
 
-            if (ttlValue < 0)
+            if (!int.TryParse(eventProperties["_ttl"].ToString(), out ttlValue))
+            {
+                TimeSpan ttlTimeSpan;
+                if (TimeSpan.TryParse(eventProperties["_ttl"].ToString(), out ttlTimeSpan))
+                {
+                    ttlValue = (int) ttlTimeSpan.TotalSeconds;
+                }
+            }
+
+            if (ttlValue <= 0)
                 ttlValue = -1;
             eventObject.Add("ttl", ttlValue);
 
