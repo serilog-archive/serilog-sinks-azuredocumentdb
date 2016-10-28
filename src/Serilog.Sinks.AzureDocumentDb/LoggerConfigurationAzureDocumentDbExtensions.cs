@@ -12,20 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+using System;
+using Microsoft.Azure.Documents.Client;
+using Serilog.Configuration;
+using Serilog.Events;
+using Serilog.Sinks.AzureDocumentDb;
+
 namespace Serilog
 {
-    using System;
-    using Microsoft.Azure.Documents.Client;
-    using Configuration;
-    using Events;
-    using Sinks.AzureDocumentDb;
-
     /// <summary>
     ///     Adds the WriteTo.AzureDocumentDb() extension method to <see cref="LoggerConfiguration" />.
     /// </summary>
     public static class LoggerConfigurationAzureDocumentDBExtensions
     {
-        
         /// <summary>
         ///     Adds a sink that writes log events to a Azure DocumentDB table in the provided endpoint.
         /// </summary>
@@ -37,11 +36,16 @@ namespace Serilog
         /// <param name="restrictedToMinimumLevel">The minimum log event level required in order to write an event to the sink.</param>
         /// <param name="formatProvider">Supplies culture-specific formatting information, or null.</param>
         /// <param name="storeTimestampInUtc">Store Timestamp in UTC</param>
-        /// <param name="connectionProtocol">Specifies communication protocol used by driver to communicate with Azure DocumentDB services.</param>
-        /// <param name="timeToLive">The lifespan of documents (roughly 24855 days maximum). Set null to disable document expiration. </param>
+        /// <param name="connectionProtocol">
+        ///     Specifies communication protocol used by driver to communicate with Azure DocumentDB
+        ///     services.
+        /// </param>
+        /// <param name="timeToLive">
+        ///     The lifespan of documents (roughly 24855 days maximum). Set null to disable document
+        ///     expiration.
+        /// </param>
         /// <exception cref="ArgumentNullException">A required parameter is null.</exception>
         /// <exception cref="ArgumentOutOfRangeException">A required parameter value is out of acceptable range.</exception>
-        
         public static LoggerConfiguration AzureDocumentDB(
             this LoggerSinkConfiguration loggerConfiguration,
             Uri endpointUri,
@@ -50,17 +54,15 @@ namespace Serilog
             string collectionName = "Logs",
             LogEventLevel restrictedToMinimumLevel = LevelAlias.Minimum,
             IFormatProvider formatProvider = null,
-            bool storeTimestampInUtc = false,
+            bool storeTimestampInUtc = true,
             Protocol connectionProtocol = Protocol.Https,
             TimeSpan? timeToLive = null)
         {
             if (loggerConfiguration == null) throw new ArgumentNullException(nameof(loggerConfiguration));
             if (endpointUri == null) throw new ArgumentNullException(nameof(endpointUri));
             if (authorizationKey == null) throw new ArgumentNullException(nameof(authorizationKey));
-            if(timeToLive != null && timeToLive.Value > TimeSpan.FromDays(24855))
-            {
+            if ((timeToLive != null) && (timeToLive.Value > TimeSpan.FromDays(24855)))
                 throw new ArgumentOutOfRangeException(nameof(timeToLive));
-            }
 
             return loggerConfiguration.Sink(
                 new AzureDocumentDBSink(
@@ -74,7 +76,7 @@ namespace Serilog
                     timeToLive),
                 restrictedToMinimumLevel);
         }
-        
+
 
         /// <summary>
         ///     Adds a sink that writes log events to a Azure DocumentDB table in the provided endpoint.
@@ -87,11 +89,13 @@ namespace Serilog
         /// <param name="restrictedToMinimumLevel">The minimum log event level required in order to write an event to the sink.</param>
         /// <param name="formatProvider">Supplies culture-specific formatting information, or null.</param>
         /// <param name="storeTimestampInUtc">Store Timestamp in UTC</param>
-        /// <param name="connectionProtocol">Specifies communication protocol used by driver to communicate with Azure DocumentDB services. Values can be either https or Tcp</param>
+        /// <param name="connectionProtocol">
+        ///     Specifies communication protocol used by driver to communicate with Azure DocumentDB
+        ///     services. Values can be either https or Tcp
+        /// </param>
         /// <param name="timeToLive">The lifespan of documents in seconds. Set null to disable document expiration. </param>
         /// <exception cref="ArgumentNullException">A required parameter is null.</exception>
         /// <exception cref="ArgumentOutOfRangeException">A required parameter value is out of acceptable range.</exception>
-
         public static LoggerConfiguration AzureDocumentDB(
             this LoggerSinkConfiguration loggerConfiguration,
             string endpointUrl,
@@ -107,16 +111,12 @@ namespace Serilog
             if (loggerConfiguration == null) throw new ArgumentNullException(nameof(loggerConfiguration));
             if (string.IsNullOrWhiteSpace(endpointUrl)) throw new ArgumentNullException(nameof(endpointUrl));
             if (authorizationKey == null) throw new ArgumentNullException(nameof(authorizationKey));
-            if (timeToLive != null && timeToLive.Value > TimeSpan.FromDays(24855).TotalSeconds)
-            {
+            if ((timeToLive != null) && (timeToLive.Value > TimeSpan.FromDays(24855).TotalSeconds))
                 throw new ArgumentOutOfRangeException(nameof(timeToLive));
-            }
 
             TimeSpan? timeSpan = null;
-            if(timeToLive != null)
-            {
-                timeSpan = TimeSpan.FromSeconds(Math.Max(-1,timeToLive.Value));
-            }
+            if (timeToLive != null)
+                timeSpan = TimeSpan.FromSeconds(Math.Max(-1, timeToLive.Value));
 
             return loggerConfiguration.Sink(
                 new AzureDocumentDBSink(
@@ -126,7 +126,7 @@ namespace Serilog
                     collectionName,
                     formatProvider,
                     storeTimestampInUtc,
-                    connectionProtocol?.ToUpper() == "TCP"? Protocol.Tcp: Protocol.Https,
+                    connectionProtocol?.ToUpper() == "TCP" ? Protocol.Tcp : Protocol.Https,
                     timeSpan),
                 restrictedToMinimumLevel);
         }
