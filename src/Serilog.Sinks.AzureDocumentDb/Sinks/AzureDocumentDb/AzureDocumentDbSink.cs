@@ -52,14 +52,14 @@ namespace Serilog.Sinks.AzureDocumentDb
             IFormatProvider formatProvider,
             bool storeTimestampInUtc,
             Protocol connectionProtocol,
-            TimeSpan? timeToLive) : base(batchSize:250, nThreads: Environment.ProcessorCount)
+            TimeSpan? timeToLive) : base(batchSize: 250, nThreads: Environment.ProcessorCount)
         {
             _endpointUri = endpointUri;
             _authorizationKey = authorizationKey;
             _formatProvider = formatProvider;
 
             if ((timeToLive != null) && (timeToLive.Value != TimeSpan.MaxValue))
-                _timeToLive = (int) timeToLive.Value.TotalSeconds;
+                _timeToLive = (int)timeToLive.Value.TotalSeconds;
 
             _client = new DocumentClient(endpointUri,
                 authorizationKey,
@@ -68,7 +68,7 @@ namespace Serilog.Sinks.AzureDocumentDb
                     ConnectionMode =
                         connectionProtocol == Protocol.Https ? ConnectionMode.Gateway : ConnectionMode.Direct,
                     ConnectionProtocol = connectionProtocol,
-                    MaxConnectionLimit = Environment.ProcessorCount*50 + 200
+                    MaxConnectionLimit = Environment.ProcessorCount * 50 + 200
                 });
 
             _storeTimestampInUtc = storeTimestampInUtc;
@@ -85,7 +85,7 @@ namespace Serilog.Sinks.AzureDocumentDb
                             .Where(x => x.Id == databaseName)
                             .AsEnumerable()
                             .FirstOrDefault() ?? await _client
-                            .CreateDatabaseAsync(new Database {Id = databaseName})
+                            .CreateDatabaseAsync(new Database { Id = databaseName })
                             .ConfigureAwait(false);
         }
 
@@ -98,7 +98,7 @@ namespace Serilog.Sinks.AzureDocumentDb
                     .FirstOrDefault();
             if (_collection == null)
             {
-                var documentCollection = new DocumentCollection {Id = collectionName, DefaultTimeToLive = -1};
+                var documentCollection = new DocumentCollection { Id = collectionName, DefaultTimeToLive = -1 };
                 _collection = await _client.CreateDocumentCollectionAsync(_database.SelfLink, documentCollection)
                     .ConfigureAwait(false);
             }
@@ -108,7 +108,7 @@ namespace Serilog.Sinks.AzureDocumentDb
 
         private async Task CreateBulkImportStoredProcedure(IDocumentClient client, bool dropExistingProc = false)
         {
-            var currentAssembly = Assembly.GetExecutingAssembly();
+            var currentAssembly = typeof(AzureDocumentDBSink).GetTypeInfo().Assembly;
 
             var resourceName =
                 currentAssembly.GetManifestResourceNames().FirstOrDefault(w => w.EndsWith("bulkImport.js"));
@@ -181,29 +181,42 @@ namespace Serilog.Sinks.AzureDocumentDb
                 var exception = e.InnerException as DocumentClientException;
                 if (exception != null)
                 {
-                    var ei = (DocumentClientException) e.InnerException;
-                    try
+                    if (exception.StatusCode == null)
                     {
-                        _exceptionMut.WaitOne();
-
-                        if (ei.StatusCode != null)
-                            switch ((int) ei.StatusCode)
-                            {
-                                case 429:
-                                    SelfLog.WriteLine("Request rate is higher than subscription throughput. Waiting for {0} ms.", ei.RetryAfter.Milliseconds);
-                                    Thread.Sleep(ei.RetryAfter.Milliseconds);
-                                    break;
-                                default:
-                                    CreateBulkImportStoredProcedure(_client, true).Wait();
-                                    break;
-                            }
-                    }
-                    finally
-                    {
-                        _exceptionMut.ReleaseMutex();
-                        _client.ExecuteStoredProcedureAsync<int>(_bulkStoredProcedureLink, args).Wait();
+                        var ei = (DocumentClientException)e.InnerException;
+                        if (ei?.StatusCode != null)
+                        {
+                            exception = ei;
+                        }
                     }
                 }
+                try
+                {
+                    _exceptionMut.WaitOne();
+
+                    if (exception?.StatusCode != null)
+                        switch ((int)exception.StatusCode)
+                        {
+                            case 429:
+                                SelfLog.WriteLine("{0}. Waiting for {1} ms.", exception.Message, exception.RetryAfter.Milliseconds);
+#if NET452
+                                Thread.Sleep(exception.RetryAfter.Milliseconds);
+#else
+                                var delayTask = Task.Delay(TimeSpan.FromMilliseconds(exception.RetryAfter.Milliseconds));
+                                delayTask.Wait();
+#endif
+                                break;
+                            default:
+                                CreateBulkImportStoredProcedure(_client, true).Wait();
+                                break;
+                        }
+                }
+                finally
+                {
+                    _client.ExecuteStoredProcedureAsync<int>(_bulkStoredProcedureLink, args).Wait();
+                    _exceptionMut.ReleaseMutex();
+                }
+
             }
         }
 
