@@ -20,15 +20,15 @@ using Serilog.Events;
 
 namespace Serilog.Sinks.Extensions
 {
-    public static class LogEventExtensions
+    internal static class LogEventExtensions
     {
-        public static IDictionary<string, object> Dictionary(this LogEvent logEvent, bool storeTimestampInUtc = false,
+        internal static IDictionary<string, object> Dictionary(this LogEvent logEvent, bool storeTimestampInUtc = false,
             IFormatProvider formatProvider = null)
         {
             return ConvertToDictionary(logEvent, storeTimestampInUtc, formatProvider);
         }
 
-        public static IDictionary<string, object> Dictionary(
+        internal static IDictionary<string, object> Dictionary(
             this IReadOnlyDictionary<string, LogEventPropertyValue> properties)
         {
             return ConvertToDictionary(properties);
