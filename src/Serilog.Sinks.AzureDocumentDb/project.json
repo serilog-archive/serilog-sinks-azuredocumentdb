@@ -1,6 +1,6 @@
 {
     "title": "Serilog.Sinks.AzureDocumentDB",
-    "version": "3.5.17-*",
+    "version": "3.5.18-*",
     "description": "Serilog event sink that writes to Azure DocumentDb",
     "authors": [
         "Serilog Contributors"
@@ -24,17 +24,17 @@
         "define": []
     },
     "dependencies": {
-        "Serilog": "2.2.1"
+        "Serilog": "2.3.0"
     },
     "frameworks": {
         "netstandard1.6": {
             "dependencies": {
-                "Microsoft.Azure.DocumentDB.Core": "0.1.0-*"
+                "Microsoft.Azure.DocumentDB.Core": "1.0.0"
             }
         },
         "net452": {
             "dependencies": {
-                "Microsoft.Azure.DocumentDB": "1.9.5"
+                "Microsoft.Azure.DocumentDB": "1.11.1"
             }
         }
     }
