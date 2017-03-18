@@ -79,6 +79,7 @@ namespace Serilog.Sinks.AzureDocumentDb
 
         private async Task CreateDatabaseIfNotExistsAsync(string databaseName)
         {
+            SelfLog.WriteLine($"Opening database {databaseName}");
             await _client.OpenAsync();
             _database = _client
                             .CreateDatabaseQuery()
@@ -91,6 +92,7 @@ namespace Serilog.Sinks.AzureDocumentDb
 
         private async Task CreateCollectionIfNotExistsAsync(string collectionName)
         {
+            SelfLog.WriteLine($"Creating collection: {collectionName}");
             _collection =
                 _client.CreateDocumentCollectionQuery(_database.SelfLink)
                     .Where(x => x.Id == collectionName)
@@ -110,8 +112,17 @@ namespace Serilog.Sinks.AzureDocumentDb
         {
             var currentAssembly = typeof(AzureDocumentDBSink).GetTypeInfo().Assembly;
 
+            SelfLog.WriteLine("Getting required resource.");
             var resourceName =
-                currentAssembly.GetManifestResourceNames().FirstOrDefault(w => w.EndsWith("bulkImport.js"));
+                currentAssembly.GetManifestResourceNames().Where(w => w.EndsWith("bulkImport.js")).FirstOrDefault();
+
+            if(string.IsNullOrEmpty(resourceName))
+            {
+                SelfLog.WriteLine("Unable to find required resource.");
+                return;
+            }
+
+            SelfLog.WriteLine($"Found resource: {resourceName}");
 
             using (var resourceStream = currentAssembly.GetManifestResourceStream(resourceName))
             {
