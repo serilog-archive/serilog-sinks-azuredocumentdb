@@ -198,13 +198,8 @@ namespace Serilog.Sinks.AzureDocumentDb
                         switch ((int)exception.StatusCode)
                         {
                             case 429:
-                                SelfLog.WriteLine("{0}. Waiting for {1} ms.", exception.Message, exception.RetryAfter.Milliseconds);
-#if NET452
-                                Thread.Sleep(exception.RetryAfter.Milliseconds);
-#else
                                 var delayTask = Task.Delay(TimeSpan.FromMilliseconds(exception.RetryAfter.Milliseconds));
                                 delayTask.Wait();
-#endif
                                 break;
                             default:
                                 CreateBulkImportStoredProcedure(_client, true).Wait();

@@ -134,7 +134,6 @@ namespace Serilog.Sinks.Extensions
 
             return null;
         }
-
         /// <summary>
         ///     ComputMessageTemplateHash a 32-bit hash of the provided <paramref name="messageTemplate" />. The
         ///     resulting hash value can be uses as an event id in lieu of transmitting the
