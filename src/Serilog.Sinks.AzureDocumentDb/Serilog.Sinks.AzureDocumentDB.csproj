@@ -47,6 +47,14 @@
     </ItemGroup>
 
     <ItemGroup>
+      <None Remove="Sinks\AzureDocumentDb\bulkImport.js" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <EmbeddedResource Include="Sinks\AzureDocumentDb\bulkImport.js" />
+    </ItemGroup>
+
+    <ItemGroup>
         <Folder Include="Properties\" />
     </ItemGroup>
 
