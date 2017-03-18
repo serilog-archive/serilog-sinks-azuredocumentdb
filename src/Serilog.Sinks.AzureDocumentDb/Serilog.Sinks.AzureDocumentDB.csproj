@@ -1,12 +1,23 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-    <PropertyGroup />
     <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net45|AnyCPU'">
       <Optimize>False</Optimize>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
         <DefineConstants>TRACE;DEBUG;NET45</DefineConstants>
-    </PropertyGroup>
-
+    </PropertyGroup>    
+    <Choose>
+        <When Condition="'$(VersionSuffix)'=='' ">
+            <PropertyGroup>
+                <VersionNumber>.0</VersionNumber>
+            </PropertyGroup>
+        </When>
+        <Otherwise>
+            <PropertyGroup>
+                <VersionNumber>-$(VersionSuffix)</VersionNumber>
+            </PropertyGroup>
+        </Otherwise>
+    </Choose>
+   
     <PropertyGroup>
         <TargetFrameworks>net45;netstandard1.6</TargetFrameworks>
         <AssemblyName>Serilog.Sinks.AzureDocumentDB</AssemblyName>
@@ -14,12 +25,13 @@
         <Authors>Serilog Contributors</Authors>
         <Company>Serilog</Company>
         <Copyright>Copyright © Serilog Contributors 2013-2017</Copyright>
-        <Description>"Write Serilog events to Azure DocumentDB</Description>
-        <AssemblyVersion>3.6.0.0</AssemblyVersion>
-        <FileVersion>3.6.0.0</FileVersion>
-        <Version>3.6.0</Version>
+        <Description>Write Serilog events to Azure DocumentDB</Description>
+        <AppxAutoIncrementPackageRevision>True</AppxAutoIncrementPackageRevision>
         <SignAssembly>True</SignAssembly>
         <AssemblyOriginatorKeyFile>Serilog.snk</AssemblyOriginatorKeyFile>
+        <AssemblyVersion>3.6.0.0</AssemblyVersion>
+        <Version>3.6.0$(VersionNumber)</Version>
+        <GeneratePackageOnBuild>False</GeneratePackageOnBuild>
     </PropertyGroup>
 
     <ItemGroup Condition="'$(TargetFramework)' == 'net45'">
