@@ -89,12 +89,17 @@ namespace Serilog.Sinks.Extensions
             if (value != null)
                 return value.Value;
 
-            var dictValue = data as IReadOnlyDictionary<string, LogEventPropertyValue>;
+            var dictValue = data as DictionaryValue;
             if (dictValue != null)
             {
                 var expObject = new ExpandoObject() as IDictionary<string, object>;
-                foreach (var item in dictValue.Keys)
-                    expObject.Add(item, Simplify(dictValue[item]));
+                foreach (var item in dictValue.Elements)
+                {
+                    var key = item.Key.Value as string;
+
+                    if(key != null)
+                        expObject.Add(key, Simplify(item.Value));
+                }
                 return expObject;
             }
 
@@ -129,7 +134,6 @@ namespace Serilog.Sinks.Extensions
 
             return null;
         }
-
         /// <summary>
         ///     ComputMessageTemplateHash a 32-bit hash of the provided <paramref name="messageTemplate" />. The
         ///     resulting hash value can be uses as an event id in lieu of transmitting the
