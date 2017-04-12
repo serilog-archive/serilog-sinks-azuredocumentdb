@@ -182,6 +182,11 @@ namespace Serilog.Sinks.AzureDocumentDb
                     return x;
                 });
 
+            if(args == null)
+            {
+                return;
+            }
+
             try
             {
                 SelfLog.WriteLine($"Sending batch of {logEventsBatch.Count} messages to DocumentDB");
