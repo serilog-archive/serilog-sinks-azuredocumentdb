@@ -16,8 +16,8 @@
         <AppxAutoIncrementPackageRevision>True</AppxAutoIncrementPackageRevision>
         <SignAssembly>True</SignAssembly>
         <AssemblyOriginatorKeyFile>Serilog.snk</AssemblyOriginatorKeyFile>
-        <AssemblyVersion>3.6.2.0</AssemblyVersion>
-        <Version>3.6.2</Version>
+        <AssemblyVersion>3.6.5.0</AssemblyVersion>
+        <Version>3.6.5</Version>
         <GeneratePackageOnBuild>False</GeneratePackageOnBuild>
         <PackageTags>serilog;sinks;azure;documentdb</PackageTags>
         <PackageIconUrl>http://serilog.net/images/serilog-sink-nuget.png</PackageIconUrl>
@@ -29,7 +29,7 @@
     </PropertyGroup>
     
     <ItemGroup Condition="'$(TargetFramework)' == 'net45'">
-        <PackageReference Include="Microsoft.Azure.DocumentDB" Version="1.12.2" />
+        <PackageReference Include="Microsoft.Azure.DocumentDB" Version="1.13.1" />
         <PackageReference Include="Serilog" Version="2.4.0" />
         <Reference Include="System" />
         <Reference Include="Microsoft.CSharp" />
@@ -37,7 +37,7 @@
 
     <ItemGroup Condition="'$(TargetFramework)' == 'netstandard1.6'">
         <PackageReference Include="Serilog" Version="2.4.0" />
-        <PackageReference Include="Microsoft.Azure.DocumentDB.Core" Version="1.1.1" />
+        <PackageReference Include="Microsoft.Azure.DocumentDB.Core" Version="1.2.1" />
     </ItemGroup>
 
     <ItemGroup>
