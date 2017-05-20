@@ -48,15 +48,16 @@ namespace Serilog.Sinks.Extensions
             IFormatProvider formatProvider)
         {
             var eventObject = new ExpandoObject() as IDictionary<string, object>;
+            var messageTemplateText = logEvent.MessageTemplate?.Text ?? string.Empty;
 
-            eventObject.Add("EventIdHash", ComputeMessageTemplateHash(logEvent.MessageTemplate.Text));
+            eventObject.Add("EventIdHash", ComputeMessageTemplateHash(messageTemplateText));
             eventObject.Add("Timestamp", storeTimestampInUtc
                 ? logEvent.Timestamp.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss.fffzzz")
                 : logEvent.Timestamp.ToString("yyyy-MM-dd HH:mm:ss.fffzzz"));
 
             eventObject.Add("Level", logEvent.Level.ToString());
             eventObject.Add("Message", logEvent.RenderMessage(formatProvider));
-            eventObject.Add("MessageTemplate", logEvent.MessageTemplate.Text);
+            eventObject.Add("MessageTemplate", messageTemplateText);
             eventObject.Add("Exception", logEvent.Exception);
 
             var eventProperties = logEvent.Properties.Dictionary();
@@ -65,14 +66,12 @@ namespace Serilog.Sinks.Extensions
             if (!eventProperties.Keys.Contains("_ttl"))
                 return eventObject;
 
-            int ttlValue;
 
-            if (!int.TryParse(eventProperties["_ttl"].ToString(), out ttlValue))
+            if (!int.TryParse(eventProperties["_ttl"].ToString(), out int ttlValue))
             {
-                TimeSpan ttlTimeSpan;
-                if (TimeSpan.TryParse(eventProperties["_ttl"].ToString(), out ttlTimeSpan))
+                if (TimeSpan.TryParse(eventProperties["_ttl"].ToString(), out TimeSpan ttlTimeSpan))
                 {
-                    ttlValue = (int) ttlTimeSpan.TotalSeconds;
+                    ttlValue = (int)ttlTimeSpan.TotalSeconds;
                 }
             }
 
