@@ -239,7 +239,10 @@ namespace Serilog.Sinks.AzureDocumentDb
 
         public void Emit(LogEvent logEvent)
         {
-            PushEvent(logEvent);
+            if (logEvent != null)
+            {
+                PushEvent(logEvent);
+            }
         }
 
         #endregion
