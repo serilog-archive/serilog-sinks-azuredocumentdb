@@ -16,6 +16,7 @@ using System;
 using System.Collections.Generic;
 using System.Dynamic;
 using System.Linq;
+using System.Reflection;
 using Serilog.Events;
 
 namespace Serilog.Sinks.Extensions
@@ -58,7 +59,23 @@ namespace Serilog.Sinks.Extensions
             eventObject.Add("Level", logEvent.Level.ToString());
             eventObject.Add("Message", logEvent.RenderMessage(formatProvider));
             eventObject.Add("MessageTemplate", messageTemplateText);
-            eventObject.Add("Exception", logEvent.Exception);
+
+            var logEventException = logEvent.Exception;
+            if (logEventException != null)
+            {
+                var exceptionObject = new ExpandoObject() as IDictionary<string, object>;
+                var exceptionType = logEventException.GetType();
+                foreach (var propertyInfo in exceptionType.GetTypeInfo().GetProperties())
+                {
+                    if (propertyInfo.Name != "TargetSite")
+                    {
+                        var propertyValue = propertyInfo.GetValue(logEventException, null);
+                        exceptionObject.Add(propertyInfo.Name, propertyValue);
+                    }
+                }
+
+                eventObject.Add("Exception", exceptionObject);
+            }
 
             var eventProperties = logEvent.Properties.Dictionary();
             eventObject.Add("Properties", eventProperties);
