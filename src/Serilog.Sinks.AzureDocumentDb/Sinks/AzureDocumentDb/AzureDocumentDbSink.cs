@@ -134,8 +134,6 @@ namespace Serilog.Sinks.AzureDocumentDb
                 return;
             }
 
-            SelfLog.WriteLine($"Found resource: {resourceName}");
-
             using (var resourceStream = currentAssembly.GetManifestResourceStream(resourceName))
             {
                 if (resourceStream != null)
