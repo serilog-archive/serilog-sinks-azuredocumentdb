@@ -132,8 +132,6 @@ namespace Serilog.Sinks.Batch
             _batchEventsCollection.Add(logEventList);
         }
 
-        private object _monitorObject = new object();
-
         protected void PushEvent(LogEvent logEvent)
         {
             _eventsCollection.Add(logEvent);
@@ -151,13 +149,7 @@ namespace Serilog.Sinks.Batch
             {
                 if (disposing)
                 {
-                    SelfLog.WriteLine("Halting sink...");
-                    _eventCancellationToken.Cancel();
-                    _cancellationToken.Cancel();
-
-                    Task.WaitAll(_workerTasks.ToArray());
-
-                    FluchAndCloseEvents();
+                    FluchAndCloseEventHandlers();
 
                     SelfLog.WriteLine("Sink halted successfully.");
                 }
@@ -166,13 +158,19 @@ namespace Serilog.Sinks.Batch
             }
         }
 
-        private void FluchAndCloseEvents()
+        private void FluchAndCloseEventHandlers()
         {
             try
             {
+                SelfLog.WriteLine("Halting sink...");
+
+                _eventCancellationToken.Cancel();
+                _cancellationToken.Cancel();
+
+                Task.WaitAll(_workerTasks.ToArray());
+
                 _canStop = true;
                 _timerResetEvent.Set();
-                _timerTask.Wait();
 
                 // Flush events collection
                 while (_eventsCollection.TryTake(out LogEvent logEvent))
@@ -191,7 +189,7 @@ namespace Serilog.Sinks.Batch
 
                 FlushLogEventBatch();
 
-                Task.WaitAll(new[] {_batchTask, _timerTask}, TimeSpan.FromSeconds(30));
+                Task.WaitAll(new[] { _eventPumpTask, _batchTask, _timerTask}, TimeSpan.FromSeconds(30));
             }
             catch (Exception ex)
             {
