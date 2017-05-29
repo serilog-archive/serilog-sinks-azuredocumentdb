@@ -183,11 +183,11 @@ namespace Serilog.Sinks.Batch
                     }
                 }
 
+                FlushLogEventBatch();
+
                 // Flush events batch
                 while (_batchEventsCollection.TryTake(out IList<LogEvent> eventBatch))
                     WriteLogEvent(eventBatch);
-
-                FlushLogEventBatch();
 
                 Task.WaitAll(new[] { _eventPumpTask, _batchTask, _timerTask}, TimeSpan.FromSeconds(30));
             }
