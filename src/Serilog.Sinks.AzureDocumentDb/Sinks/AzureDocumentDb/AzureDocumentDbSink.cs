@@ -17,10 +17,12 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
+using Newtonsoft.Json;
 using Serilog.Core;
 using Serilog.Debugging;
 using Serilog.Events;
@@ -75,6 +77,16 @@ namespace Serilog.Sinks.AzureDocumentDb
 
             CreateDatabaseIfNotExistsAsync(databaseName).Wait();
             CreateCollectionIfNotExistsAsync(collectionName).Wait();
+
+            JsonConvert.DefaultSettings = () =>
+            {
+                var settings = new JsonSerializerSettings()
+                {
+                    ReferenceLoopHandling = ReferenceLoopHandling.Ignore
+                };
+                return settings;
+            };
+
         }
 
         private async Task CreateDatabaseIfNotExistsAsync(string databaseName)
@@ -121,8 +133,6 @@ namespace Serilog.Sinks.AzureDocumentDb
                 SelfLog.WriteLine("Unable to find required resource.");
                 return;
             }
-
-            SelfLog.WriteLine($"Found resource: {resourceName}");
 
             using (var resourceStream = currentAssembly.GetManifestResourceStream(resourceName))
             {
@@ -194,13 +204,14 @@ namespace Serilog.Sinks.AzureDocumentDb
                 {
                     if (exception.StatusCode == null)
                     {
-                        var ei = (DocumentClientException)e.InnerException;
+                        var ei = (DocumentClientException) e.InnerException;
                         if (ei?.StatusCode != null)
                         {
                             exception = ei;
                         }
                     }
                 }
+
                 try
                 {
                     _exceptionMut.WaitOne();
@@ -234,7 +245,10 @@ namespace Serilog.Sinks.AzureDocumentDb
 
         public void Emit(LogEvent logEvent)
         {
-            PushEvent(logEvent);
+            if (logEvent != null)
+            {
+                PushEvent(logEvent);
+            }
         }
 
         #endregion

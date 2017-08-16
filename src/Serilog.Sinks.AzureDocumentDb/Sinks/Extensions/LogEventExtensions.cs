@@ -16,6 +16,7 @@ using System;
 using System.Collections.Generic;
 using System.Dynamic;
 using System.Linq;
+using System.Reflection;
 using Serilog.Events;
 
 namespace Serilog.Sinks.Extensions
@@ -48,16 +49,33 @@ namespace Serilog.Sinks.Extensions
             IFormatProvider formatProvider)
         {
             var eventObject = new ExpandoObject() as IDictionary<string, object>;
+            var messageTemplateText = logEvent.MessageTemplate?.Text ?? string.Empty;
 
-            eventObject.Add("EventIdHash", ComputeMessageTemplateHash(logEvent.MessageTemplate.Text));
+            eventObject.Add("EventIdHash", ComputeMessageTemplateHash(messageTemplateText));
             eventObject.Add("Timestamp", storeTimestampInUtc
                 ? logEvent.Timestamp.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss.fffzzz")
                 : logEvent.Timestamp.ToString("yyyy-MM-dd HH:mm:ss.fffzzz"));
 
             eventObject.Add("Level", logEvent.Level.ToString());
             eventObject.Add("Message", logEvent.RenderMessage(formatProvider));
-            eventObject.Add("MessageTemplate", logEvent.MessageTemplate.Text);
-            eventObject.Add("Exception", logEvent.Exception);
+            eventObject.Add("MessageTemplate", messageTemplateText);
+
+            var logEventException = logEvent.Exception;
+            if (logEventException != null)
+            {
+                var exceptionObject = new ExpandoObject() as IDictionary<string, object>;
+                var exceptionType = logEventException.GetType();
+                foreach (var propertyInfo in exceptionType.GetTypeInfo().GetProperties())
+                {
+                    if (propertyInfo.Name != "TargetSite")
+                    {
+                        var propertyValue = propertyInfo.GetValue(logEventException, null);
+                        exceptionObject.Add(propertyInfo.Name, propertyValue);
+                    }
+                }
+
+                eventObject.Add("Exception", exceptionObject);
+            }
 
             var eventProperties = logEvent.Properties.Dictionary();
             eventObject.Add("Properties", eventProperties);
@@ -65,14 +83,12 @@ namespace Serilog.Sinks.Extensions
             if (!eventProperties.Keys.Contains("_ttl"))
                 return eventObject;
 
-            int ttlValue;
 
-            if (!int.TryParse(eventProperties["_ttl"].ToString(), out ttlValue))
+            if (!int.TryParse(eventProperties["_ttl"].ToString(), out int ttlValue))
             {
-                TimeSpan ttlTimeSpan;
-                if (TimeSpan.TryParse(eventProperties["_ttl"].ToString(), out ttlTimeSpan))
+                if (TimeSpan.TryParse(eventProperties["_ttl"].ToString(), out TimeSpan ttlTimeSpan))
                 {
-                    ttlValue = (int) ttlTimeSpan.TotalSeconds;
+                    ttlValue = (int)ttlTimeSpan.TotalSeconds;
                 }
             }
 
