@@ -54,7 +54,8 @@ namespace Serilog.Sinks.AzureDocumentDb
             IFormatProvider formatProvider,
             bool storeTimestampInUtc,
             Protocol connectionProtocol,
-            TimeSpan? timeToLive) : base(batchSize: 250, nThreads: Environment.ProcessorCount)
+            TimeSpan? timeToLive,
+            uint batchSize = 250) : base(batchSize)
         {
             _endpointUri = endpointUri;
             _authorizationKey = authorizationKey;
