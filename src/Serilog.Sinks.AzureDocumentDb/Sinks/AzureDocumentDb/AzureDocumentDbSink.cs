@@ -17,7 +17,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Azure.Documents;
@@ -93,7 +92,7 @@ namespace Serilog.Sinks.AzureDocumentDb
         private async Task CreateDatabaseIfNotExistsAsync(string databaseName)
         {
             SelfLog.WriteLine($"Opening database {databaseName}");
-            await _client.OpenAsync();
+            await _client.OpenAsync().ConfigureAwait(false);
             _database = _client
                             .CreateDatabaseQuery()
                             .Where(x => x.Id == databaseName)
@@ -118,16 +117,16 @@ namespace Serilog.Sinks.AzureDocumentDb
                     .ConfigureAwait(false);
             }
             _collectionLink = _collection.SelfLink;
-            await CreateBulkImportStoredProcedure(_client);
+            await CreateBulkImportStoredProcedureAsync(_client).ConfigureAwait(false);
         }
 
-        private async Task CreateBulkImportStoredProcedure(IDocumentClient client, bool dropExistingProc = false)
+        private async Task CreateBulkImportStoredProcedureAsync(IDocumentClient client, bool dropExistingProc = false)
         {
             var currentAssembly = typeof(AzureDocumentDBSink).GetTypeInfo().Assembly;
 
             SelfLog.WriteLine("Getting required resource.");
             var resourceName =
-                currentAssembly.GetManifestResourceNames().Where(w => w.EndsWith("bulkImport.js")).FirstOrDefault();
+                currentAssembly.GetManifestResourceNames().FirstOrDefault(w => w.EndsWith("bulkImport.js"));
 
             if(string.IsNullOrEmpty(resourceName))
             {
@@ -140,7 +139,8 @@ namespace Serilog.Sinks.AzureDocumentDb
                 if (resourceStream != null)
                 {
                     var reader = new StreamReader(resourceStream);
-                    var bulkImportSrc = reader.ReadToEnd();
+                    var bulkImportSrc = await reader.ReadToEndAsync()
+                        .ConfigureAwait(false);
                     try
                     {
                         var sp = new StoredProcedure
@@ -153,12 +153,12 @@ namespace Serilog.Sinks.AzureDocumentDb
 
                         if ((sproc != null) && dropExistingProc)
                         {
-                            await client.DeleteStoredProcedureAsync(sproc.SelfLink);
+                            await client.DeleteStoredProcedureAsync(sproc.SelfLink).ConfigureAwait(false);
                             sproc = null;
                         }
 
                         if (sproc == null)
-                            sproc = await client.CreateStoredProcedureAsync(_collectionLink, sp);
+                            sproc = await client.CreateStoredProcedureAsync(_collectionLink, sp).ConfigureAwait(false);
 
                         _bulkStoredProcedureLink = sproc.SelfLink;
                     }
@@ -196,45 +196,61 @@ namespace Serilog.Sinks.AzureDocumentDb
             try
             {
                 SelfLog.WriteLine($"Sending batch of {logEventsBatch.Count} messages to DocumentDB");
-                _client.ExecuteStoredProcedureAsync<int>(_bulkStoredProcedureLink, args).Wait();
+                var storedProcedureResponse = _client.ExecuteStoredProcedureAsync<int>(_bulkStoredProcedureLink, args)
+                    .Result;
+                SelfLog.WriteLine(storedProcedureResponse.StatusCode.ToString());
             }
             catch (AggregateException e)
             {
-                var exception = e.InnerException as DocumentClientException;
-                if (exception != null)
-                {
-                    if (exception.StatusCode == null)
-                    {
-                        var ei = (DocumentClientException) e.InnerException;
-                        if (ei?.StatusCode != null)
-                        {
-                            exception = ei;
-                        }
-                    }
-                }
+                SelfLog.WriteLine($"ERROR: {(e.InnerException??e).Message}");
 
                 try
                 {
                     _exceptionMut.WaitOne();
 
+                    var exception = e.InnerException as DocumentClientException;
+                    if (exception != null)
+                    {
+                        if (exception.StatusCode == null)
+                        {
+                            var ei = (DocumentClientException)e.InnerException;
+                            if (ei?.StatusCode != null)
+                            {
+                                exception = ei;
+                            }
+                        }
+                    }
+
                     if (exception?.StatusCode != null)
-                        switch ((int)exception.StatusCode)
+                    {
+                        switch ((int) exception.StatusCode)
                         {
                             case 429:
-                                var delayTask = Task.Delay(TimeSpan.FromMilliseconds(exception.RetryAfter.Milliseconds));
+                                var delayTask = Task.Delay(
+                                    TimeSpan.FromMilliseconds(exception.RetryAfter.Milliseconds + 10));
                                 delayTask.Wait();
                                 break;
                             default:
-                                CreateBulkImportStoredProcedure(_client, true).Wait();
+                                CreateBulkImportStoredProcedureAsync(_client, true)
+                                    .Wait();
                                 break;
                         }
+                    }
+                    else
+                    {
+                        SelfLog.WriteLine("Reconnecting again after 10 seconds");
+                        Thread.Sleep(TimeSpan.FromSeconds(10));
+                    }
+
                 }
                 finally
                 {
-                    _client.ExecuteStoredProcedureAsync<int>(_bulkStoredProcedureLink, args).Wait();
+                    foreach (var logEvent in logEventsBatch)
+                    {
+                        PushEvent(logEvent);
+                    }
                     _exceptionMut.ReleaseMutex();
                 }
-
             }
         }
 
