@@ -44,6 +44,8 @@ namespace Serilog
         ///     The lifespan of documents (roughly 24855 days maximum). Set null to disable document
         ///     expiration.
         /// </param>
+        /// <param name="logBufferSize">Maximum number of log entries this sink can hold before stop accepting log messages. Supported size is between 5000 and 25000</param>
+        /// <param name="batchSize">Number of log messages to be sent as batch. Supported range is between 1 and 1000</param>
         /// <exception cref="ArgumentNullException">A required parameter is null.</exception>
         /// <exception cref="ArgumentOutOfRangeException">A required parameter value is out of acceptable range.</exception>
         public static LoggerConfiguration AzureDocumentDB(
@@ -56,12 +58,14 @@ namespace Serilog
             IFormatProvider formatProvider = null,
             bool storeTimestampInUtc = true,
             Protocol connectionProtocol = Protocol.Https,
-            TimeSpan? timeToLive = null)
+            TimeSpan? timeToLive = null,
+            int logBufferSize = 25_000,
+            int batchSize = 100)
         {
             if (loggerConfiguration == null) throw new ArgumentNullException(nameof(loggerConfiguration));
             if (endpointUri == null) throw new ArgumentNullException(nameof(endpointUri));
             if (authorizationKey == null) throw new ArgumentNullException(nameof(authorizationKey));
-            if ((timeToLive != null) && (timeToLive.Value > TimeSpan.FromDays(24855)))
+            if ((timeToLive != null) && (timeToLive.Value > TimeSpan.FromDays(24_855)))
                 throw new ArgumentOutOfRangeException(nameof(timeToLive));
 
             return loggerConfiguration.Sink(
@@ -73,10 +77,11 @@ namespace Serilog
                     formatProvider,
                     storeTimestampInUtc,
                     connectionProtocol,
-                    timeToLive),
+                    timeToLive,
+                    logBufferSize,
+                    batchSize),
                 restrictedToMinimumLevel);
         }
-
 
         /// <summary>
         ///     Adds a sink that writes log events to a Azure DocumentDB table in the provided endpoint.
@@ -94,6 +99,8 @@ namespace Serilog
         ///     services. Values can be either https or Tcp
         /// </param>
         /// <param name="timeToLive">The lifespan of documents in seconds. Set null to disable document expiration. </param>
+        /// <param name="logBufferSize">Maximum number of log entries this sink can hold before stop accepting log messages. Supported size is between 5000 and 25000</param>
+        /// <param name="batchSize">Number of log messages to be sent as batch. Supported range is between 1 and 1000</param>
         /// <exception cref="ArgumentNullException">A required parameter is null.</exception>
         /// <exception cref="ArgumentOutOfRangeException">A required parameter value is out of acceptable range.</exception>
         public static LoggerConfiguration AzureDocumentDB(
@@ -106,12 +113,14 @@ namespace Serilog
             IFormatProvider formatProvider = null,
             bool storeTimestampInUtc = false,
             string connectionProtocol = "https",
-            int? timeToLive = null)
+            int? timeToLive = null,
+            int logBufferSize = 25_000,
+            int batchSize = 100)
         {
             if (loggerConfiguration == null) throw new ArgumentNullException(nameof(loggerConfiguration));
             if (string.IsNullOrWhiteSpace(endpointUrl)) throw new ArgumentNullException(nameof(endpointUrl));
             if (authorizationKey == null) throw new ArgumentNullException(nameof(authorizationKey));
-            if ((timeToLive != null) && (timeToLive.Value > TimeSpan.FromDays(24855).TotalSeconds))
+            if ((timeToLive != null) && (timeToLive.Value > TimeSpan.FromDays(24_855).TotalSeconds))
                 throw new ArgumentOutOfRangeException(nameof(timeToLive));
 
             TimeSpan? timeSpan = null;
@@ -127,7 +136,9 @@ namespace Serilog
                     formatProvider,
                     storeTimestampInUtc,
                     connectionProtocol?.ToUpper() == "TCP" ? Protocol.Tcp : Protocol.Https,
-                    timeSpan),
+                    timeSpan,
+                    logBufferSize,
+                    batchSize),
                 restrictedToMinimumLevel);
         }
     }

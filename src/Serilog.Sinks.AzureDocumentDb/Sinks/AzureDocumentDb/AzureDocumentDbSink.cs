@@ -16,8 +16,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Azure.Documents;
@@ -46,24 +46,27 @@ namespace Serilog.Sinks.AzureDocumentDb
         private Database _database;
         private Uri _endpointUri;
 
-
-        public AzureDocumentDBSink(Uri endpointUri,
+        public AzureDocumentDBSink(
+            Uri endpointUri,
             string authorizationKey,
             string databaseName,
             string collectionName,
             IFormatProvider formatProvider,
             bool storeTimestampInUtc,
             Protocol connectionProtocol,
-            TimeSpan? timeToLive) : base(batchSize: 250, nThreads: Environment.ProcessorCount)
+            TimeSpan? timeToLive,
+            int logBufferSize = 25_000,
+            int batchSize = 100) : base(batchSize, logBufferSize)
         {
             _endpointUri = endpointUri;
             _authorizationKey = authorizationKey;
             _formatProvider = formatProvider;
 
             if ((timeToLive != null) && (timeToLive.Value != TimeSpan.MaxValue))
-                _timeToLive = (int)timeToLive.Value.TotalSeconds;
+                _timeToLive = (int) timeToLive.Value.TotalSeconds;
 
-            _client = new DocumentClient(endpointUri,
+            _client = new DocumentClient(
+                endpointUri,
                 authorizationKey,
                 new ConnectionPolicy
                 {
@@ -75,60 +78,59 @@ namespace Serilog.Sinks.AzureDocumentDb
 
             _storeTimestampInUtc = storeTimestampInUtc;
 
-            CreateDatabaseIfNotExistsAsync(databaseName).Wait();
-            CreateCollectionIfNotExistsAsync(collectionName).Wait();
+            CreateDatabaseIfNotExistsAsync(databaseName)
+                .Wait();
+            CreateCollectionIfNotExistsAsync(collectionName)
+                .Wait();
 
             JsonConvert.DefaultSettings = () =>
             {
-                var settings = new JsonSerializerSettings()
-                {
-                    ReferenceLoopHandling = ReferenceLoopHandling.Ignore
-                };
+                var settings = new JsonSerializerSettings() {ReferenceLoopHandling = ReferenceLoopHandling.Ignore};
                 return settings;
             };
-
         }
 
         private async Task CreateDatabaseIfNotExistsAsync(string databaseName)
         {
             SelfLog.WriteLine($"Opening database {databaseName}");
-            await _client.OpenAsync();
-            _database = _client
-                            .CreateDatabaseQuery()
-                            .Where(x => x.Id == databaseName)
-                            .AsEnumerable()
-                            .FirstOrDefault() ?? await _client
-                            .CreateDatabaseAsync(new Database { Id = databaseName })
-                            .ConfigureAwait(false);
+            await _client.OpenAsync()
+                .ConfigureAwait(false);
+            _database = _client.CreateDatabaseQuery()
+                    .Where(x => x.Id == databaseName)
+                    .AsEnumerable()
+                    .FirstOrDefault()
+                ?? await _client.CreateDatabaseAsync(new Database {Id = databaseName})
+                    .ConfigureAwait(false);
         }
 
         private async Task CreateCollectionIfNotExistsAsync(string collectionName)
         {
             SelfLog.WriteLine($"Creating collection: {collectionName}");
-            _collection =
-                _client.CreateDocumentCollectionQuery(_database.SelfLink)
-                    .Where(x => x.Id == collectionName)
-                    .AsEnumerable()
-                    .FirstOrDefault();
+            _collection = _client.CreateDocumentCollectionQuery(_database.SelfLink)
+                .Where(x => x.Id == collectionName)
+                .AsEnumerable()
+                .FirstOrDefault();
             if (_collection == null)
             {
-                var documentCollection = new DocumentCollection { Id = collectionName, DefaultTimeToLive = -1 };
+                var documentCollection = new DocumentCollection {Id = collectionName, DefaultTimeToLive = -1};
                 _collection = await _client.CreateDocumentCollectionAsync(_database.SelfLink, documentCollection)
                     .ConfigureAwait(false);
             }
             _collectionLink = _collection.SelfLink;
-            await CreateBulkImportStoredProcedure(_client);
+            await CreateBulkImportStoredProcedureAsync(_client)
+                .ConfigureAwait(false);
         }
 
-        private async Task CreateBulkImportStoredProcedure(IDocumentClient client, bool dropExistingProc = false)
+        private async Task CreateBulkImportStoredProcedureAsync(IDocumentClient client, bool dropExistingProc = false)
         {
-            var currentAssembly = typeof(AzureDocumentDBSink).GetTypeInfo().Assembly;
+            var currentAssembly = typeof(AzureDocumentDBSink).GetTypeInfo()
+                .Assembly;
 
             SelfLog.WriteLine("Getting required resource.");
-            var resourceName =
-                currentAssembly.GetManifestResourceNames().Where(w => w.EndsWith("bulkImport.js")).FirstOrDefault();
+            var resourceName = currentAssembly.GetManifestResourceNames()
+                .FirstOrDefault(w => w.EndsWith("bulkImport.js"));
 
-            if(string.IsNullOrEmpty(resourceName))
+            if (string.IsNullOrEmpty(resourceName))
             {
                 SelfLog.WriteLine("Unable to find required resource.");
                 return;
@@ -139,25 +141,24 @@ namespace Serilog.Sinks.AzureDocumentDb
                 if (resourceStream != null)
                 {
                     var reader = new StreamReader(resourceStream);
-                    var bulkImportSrc = reader.ReadToEnd();
+                    var bulkImportSrc = await reader.ReadToEndAsync()
+                        .ConfigureAwait(false);
                     try
                     {
-                        var sp = new StoredProcedure
-                        {
-                            Id = BulkStoredProcedureId,
-                            Body = bulkImportSrc
-                        };
+                        var sp = new StoredProcedure {Id = BulkStoredProcedureId, Body = bulkImportSrc};
 
                         var sproc = GetStoredProcedure(_collectionLink, sp.Id);
 
                         if ((sproc != null) && dropExistingProc)
                         {
-                            await client.DeleteStoredProcedureAsync(sproc.SelfLink);
+                            await client.DeleteStoredProcedureAsync(sproc.SelfLink)
+                                .ConfigureAwait(false);
                             sproc = null;
                         }
 
                         if (sproc == null)
-                            sproc = await client.CreateStoredProcedureAsync(_collectionLink, sp);
+                            sproc = await client.CreateStoredProcedureAsync(_collectionLink, sp)
+                                .ConfigureAwait(false);
 
                         _bulkStoredProcedureLink = sproc.SelfLink;
                     }
@@ -172,68 +173,81 @@ namespace Serilog.Sinks.AzureDocumentDb
         private StoredProcedure GetStoredProcedure(string collectionLink, string id)
         {
             return _client.CreateStoredProcedureQuery(collectionLink)
-                .Where(s => s.Id == id).AsEnumerable().FirstOrDefault();
+                .Where(s => s.Id == id)
+                .AsEnumerable()
+                .FirstOrDefault();
         }
 
         #region Parallel Log Processing Support
 
-        protected override void WriteLogEvent(ICollection<LogEvent> logEventsBatch)
+        protected override async Task<bool> WriteLogEventAsync(ICollection<LogEvent> logEventsBatch)
         {
             if ((logEventsBatch == null) || (logEventsBatch.Count == 0))
-                return;
+                return true;
 
             var args = logEventsBatch.Select(x => x.Dictionary(_storeTimestampInUtc, _formatProvider));
 
             if ((_timeToLive != null) && (_timeToLive > 0))
-                args = args.Select(x =>
-                {
-                    if (!x.Keys.Contains("ttl"))
-                        x.Add("ttl", _timeToLive);
-                    return x;
-                });
+                args = args.Select(
+                    x =>
+                    {
+                        if (!x.Keys.Contains("ttl"))
+                            x.Add("ttl", _timeToLive);
+                        return x;
+                    });
 
             try
             {
                 SelfLog.WriteLine($"Sending batch of {logEventsBatch.Count} messages to DocumentDB");
-                _client.ExecuteStoredProcedureAsync<int>(_bulkStoredProcedureLink, args).Wait();
+                var storedProcedureResponse = await _client
+                    .ExecuteStoredProcedureAsync<int>(_bulkStoredProcedureLink, args)
+                    .ConfigureAwait(false);
+                SelfLog.WriteLine(storedProcedureResponse.StatusCode.ToString());
+                return storedProcedureResponse.StatusCode == HttpStatusCode.OK;
             }
             catch (AggregateException e)
             {
-                var exception = e.InnerException as DocumentClientException;
-                if (exception != null)
-                {
-                    if (exception.StatusCode == null)
-                    {
-                        var ei = (DocumentClientException) e.InnerException;
-                        if (ei?.StatusCode != null)
-                        {
-                            exception = ei;
-                        }
-                    }
-                }
+                SelfLog.WriteLine($"ERROR: {(e.InnerException ?? e).Message}");
 
                 try
                 {
                     _exceptionMut.WaitOne();
 
+                    var exception = e.InnerException as DocumentClientException;
+                    if (exception != null)
+                    {
+                        if (exception.StatusCode == null)
+                        {
+                            var ei = (DocumentClientException) e.InnerException;
+                            if (ei?.StatusCode != null)
+                            {
+                                exception = ei;
+                            }
+                        }
+                    }
+
                     if (exception?.StatusCode != null)
-                        switch ((int)exception.StatusCode)
+                    {
+                        switch ((int) exception.StatusCode)
                         {
                             case 429:
-                                var delayTask = Task.Delay(TimeSpan.FromMilliseconds(exception.RetryAfter.Milliseconds));
+                                var delayTask = Task.Delay(
+                                    TimeSpan.FromMilliseconds(exception.RetryAfter.Milliseconds + 10));
                                 delayTask.Wait();
                                 break;
                             default:
-                                CreateBulkImportStoredProcedure(_client, true).Wait();
+                                await CreateBulkImportStoredProcedureAsync(_client, true)
+                                    .ConfigureAwait(false);
                                 break;
                         }
+                    }
                 }
                 finally
                 {
-                    _client.ExecuteStoredProcedureAsync<int>(_bulkStoredProcedureLink, args).Wait();
                     _exceptionMut.ReleaseMutex();
                 }
 
+                return false;
             }
         }
 
