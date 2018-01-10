@@ -16,8 +16,8 @@
         <AppxAutoIncrementPackageRevision>True</AppxAutoIncrementPackageRevision>
         <SignAssembly>True</SignAssembly>
         <AssemblyOriginatorKeyFile>Serilog.snk</AssemblyOriginatorKeyFile>
-        <AssemblyVersion>3.7.0.0</AssemblyVersion>
-        <Version>3.7.0</Version>
+        <AssemblyVersion>3.8.0.0</AssemblyVersion>
+        <Version>3.8.0</Version>
         <GeneratePackageOnBuild>False</GeneratePackageOnBuild>
         <PackageTags>serilog;sinks;azure;documentdb</PackageTags>
         <PackageIconUrl>http://serilog.net/images/serilog-sink-nuget.png</PackageIconUrl>
