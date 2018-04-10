@@ -1,4 +1,4 @@
-﻿// Copyright 2016 Zethian Inc.
+﻿// Copyright 2018 Zethian Inc.
 // 
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@ namespace Serilog.Sinks.Batch
         private const int MaxSupportedBatchSize = 1_000;
         private int _numMessages;
         private bool _canStop;
-
         private readonly int _maxBufferSize;
         private readonly int _batchSize;
         private readonly CancellationTokenSource _cancellationToken = new CancellationTokenSource();
@@ -75,14 +74,12 @@ namespace Serilog.Sinks.Batch
                             {
                                 try
                                 {
-                                    var messageList = workerTask as IList<LogEvent>;
-                                    if (messageList == null || messageList.Count == 0)
+                                    if (!(workerTask is IList<LogEvent> messageList) || messageList.Count == 0)
                                     {
                                         return;
                                     }
 
-                                    var retValue = await WriteLogEventAsync(messageList)
-                                        .ConfigureAwait(false);
+                                    var retValue = await WriteLogEventAsync(messageList).ConfigureAwait(false);
                                     if (retValue)
                                     {
                                         Interlocked.Add(ref _numMessages, -1 * messageList.Count);
@@ -91,8 +88,7 @@ namespace Serilog.Sinks.Batch
                                     {
                                         SelfLog.WriteLine("Retrying after 10 seconds...");
 
-                                        await Task.Delay(TimeSpan.FromSeconds(10))
-                                            .ConfigureAwait(false);
+                                        await Task.Delay(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 
                                         _batchEventsCollection.Add(messageList);
                                     }
@@ -104,8 +100,7 @@ namespace Serilog.Sinks.Batch
                             },
                             logEvents));
 
-                    Task.WhenAny(_workerTasks)
-                        .ContinueWith(a => { _workerTasks.RemoveAll(t => t.IsCompleted); });
+                    Task.WhenAny(_workerTasks).ContinueWith(a => { _workerTasks.RemoveAll(t => t.IsCompleted); });
                 }
             }
             catch (OperationCanceledException)
@@ -159,7 +154,7 @@ namespace Serilog.Sinks.Batch
                 return;
             }
 
-            var logEventBatchSize = _logEventBatch.Count >= _batchSize ? (int)_batchSize : _logEventBatch.Count;
+            var logEventBatchSize = _logEventBatch.Count >= _batchSize ? _batchSize : _logEventBatch.Count;
             var logEventList = new List<LogEvent>();
 
             for (var i = 0; i < logEventBatchSize; i++)
@@ -169,6 +164,7 @@ namespace Serilog.Sinks.Batch
                     logEventList.Add(logEvent);
                 }
             }
+
             _batchEventsCollection.Add(logEventList);
         }
 
@@ -176,6 +172,7 @@ namespace Serilog.Sinks.Batch
         {
             if (_numMessages > _maxBufferSize)
                 return;
+
             _eventsCollection.Add(logEvent);
             Interlocked.Increment(ref _numMessages);
         }
@@ -229,18 +226,12 @@ namespace Serilog.Sinks.Batch
                 FlushLogEventBatch();
 
                 // Flush events batch
-                while (_batchEventsCollection.TryTake(out IList<LogEvent> eventBatch))
-                    WriteLogEventAsync(eventBatch)
-                        .Wait(TimeSpan.FromSeconds(30));
+                while (_batchEventsCollection.TryTake(out var eventBatch))
+                {
+                    WriteLogEventAsync(eventBatch).Wait(TimeSpan.FromSeconds(30));
+                }
 
-                Task.WaitAll(
-                    new[]
-                    {
-                        _eventPumpTask,
-                        _batchTask,
-                        _timerTask
-                    },
-                    TimeSpan.FromSeconds(30));
+                Task.WaitAll(new[] { _eventPumpTask, _batchTask, _timerTask }, TimeSpan.FromSeconds(30));
             }
             catch (Exception ex)
             {
