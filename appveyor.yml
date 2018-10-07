@@ -15,7 +15,7 @@ artifacts:
 - path: artifacts/Serilog.*.nupkg
 only_commits:
   files:
-    - Serilog-Sinks.AzureDocumentDb.sln
+    - Serilog-Sinks.AzureDocumentDB.sln
     - src/Serilog.Sinks.AzureDocumentDb/
     - Build.ps1
     - assets/
