@@ -1,12 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-    <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net45|AnyCPU'">
-        <Optimize>False</Optimize>
-    </PropertyGroup>
-    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-        <DefineConstants>TRACE;DEBUG;NET45</DefineConstants>
-    </PropertyGroup>
     <PropertyGroup>
-        <TargetFrameworks>net45;netcoreapp1.0</TargetFrameworks>
+        <TargetFrameworks>net45;netstandard1.5;netstandard2.0;netcoreapp2.1</TargetFrameworks>
         <AssemblyName>Serilog.Sinks.AzureDocumentDB</AssemblyName>
         <RootNamespace>Serilog.Sinks.AzureDocumentDB</RootNamespace>
         <Authors>Serilog Contributors</Authors>
@@ -16,12 +10,18 @@
         <AppxAutoIncrementPackageRevision>True</AppxAutoIncrementPackageRevision>
         <SignAssembly>True</SignAssembly>
         <AssemblyOriginatorKeyFile>Serilog.snk</AssemblyOriginatorKeyFile>
-        <AssemblyVersion>3.8.1.0</AssemblyVersion>
-        <Version>3.8.1</Version>
+        <AssemblyVersion>4.0.0.0</AssemblyVersion>
+        <Version>4.0.0</Version>
         <GeneratePackageOnBuild>False</GeneratePackageOnBuild>
         <PackageTags>serilog;sinks;azure;documentdb</PackageTags>
         <PackageIconUrl>http://serilog.net/images/serilog-sink-nuget.png</PackageIconUrl>
         <PackageProjectUrl>https://serilog.net/</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/serilog/serilog-sinks-azuredocumentdb</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <Optimize>True</Optimize>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Configuration)'=='Debug'">
+        <Optimize>False</Optimize>        
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(VersionSuffix)'!='' ">
@@ -29,17 +29,19 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Serilog" Version="2.6.0" />
+        <PackageReference Include="Serilog" Version="2.7.1" />
+        <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
     </ItemGroup>
 
     <ItemGroup Condition="'$(TargetFramework)' == 'net45'">
-        <PackageReference Include="Microsoft.Azure.DocumentDB" Version="1.19.1" />
         <Reference Include="System" />
         <Reference Include="Microsoft.CSharp" />
+        <PackageReference Include="Microsoft.Azure.DocumentDB" Version="2.1.2" />
     </ItemGroup>
 
-    <ItemGroup Condition="'$(TargetFramework)' == 'netcoreapp1.0'">
-        <PackageReference Include="Microsoft.Azure.DocumentDB.Core" Version="1.7.1" />
+    <ItemGroup Condition="'$(TargetFramework)' == 'netstandard1.5' OR '$(TargetFramework)' == 'netstandard2.0' OR '$(TargetFramework)' == 'netcoreapp2.1'">
+        <PackageReference Include="Microsoft.CSharp" Version="4.5.0" />
+        <PackageReference Include="Microsoft.Azure.DocumentDB.Core" Version="2.1.2" />
     </ItemGroup>
 
     <ItemGroup>

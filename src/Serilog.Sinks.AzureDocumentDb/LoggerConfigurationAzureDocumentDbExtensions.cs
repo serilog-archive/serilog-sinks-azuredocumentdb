@@ -15,6 +15,7 @@
 using System;
 using Microsoft.Azure.Documents.Client;
 using Serilog.Configuration;
+using Serilog.Core;
 using Serilog.Events;
 using Serilog.Sinks.AzureDocumentDb;
 
@@ -46,6 +47,9 @@ namespace Serilog
         /// </param>
         /// <param name="logBufferSize">Maximum number of log entries this sink can hold before stop accepting log messages. Supported size is between 5000 and 25000</param>
         /// <param name="batchSize">Number of log messages to be sent as batch. Supported range is between 1 and 1000</param>
+        /// <param name="levelSwitch">
+        /// A switch allowing the pass-through minimum level to be changed at runtime.
+        /// </param>
         /// <exception cref="ArgumentNullException">A required parameter is null.</exception>
         /// <exception cref="ArgumentOutOfRangeException">A required parameter value is out of acceptable range.</exception>
         public static LoggerConfiguration AzureDocumentDB(
@@ -60,11 +64,15 @@ namespace Serilog
             Protocol connectionProtocol = Protocol.Https,
             TimeSpan? timeToLive = null,
             int logBufferSize = 25_000,
-            int batchSize = 100)
+            int batchSize = 100,
+            LoggingLevelSwitch levelSwitch = null)
         {
-            if (loggerConfiguration == null) throw new ArgumentNullException(nameof(loggerConfiguration));
-            if (endpointUri == null) throw new ArgumentNullException(nameof(endpointUri));
-            if (authorizationKey == null) throw new ArgumentNullException(nameof(authorizationKey));
+            if (loggerConfiguration == null)
+                throw new ArgumentNullException(nameof(loggerConfiguration));
+            if (endpointUri == null)
+                throw new ArgumentNullException(nameof(endpointUri));
+            if (authorizationKey == null)
+                throw new ArgumentNullException(nameof(authorizationKey));
             if ((timeToLive != null) && (timeToLive.Value > TimeSpan.FromDays(24_855)))
                 throw new ArgumentOutOfRangeException(nameof(timeToLive));
 
@@ -80,7 +88,8 @@ namespace Serilog
                     timeToLive,
                     logBufferSize,
                     batchSize),
-                restrictedToMinimumLevel);
+                restrictedToMinimumLevel,
+                levelSwitch);
         }
 
         /// <summary>
@@ -101,6 +110,9 @@ namespace Serilog
         /// <param name="timeToLive">The lifespan of documents in seconds. Set null to disable document expiration. </param>
         /// <param name="logBufferSize">Maximum number of log entries this sink can hold before stop accepting log messages. Supported size is between 5000 and 25000</param>
         /// <param name="batchSize">Number of log messages to be sent as batch. Supported range is between 1 and 1000</param>
+        /// <param name="levelSwitch">
+        /// A switch allowing the pass-through minimum level to be changed at runtime.
+        /// </param>
         /// <exception cref="ArgumentNullException">A required parameter is null.</exception>
         /// <exception cref="ArgumentOutOfRangeException">A required parameter value is out of acceptable range.</exception>
         public static LoggerConfiguration AzureDocumentDB(
@@ -115,11 +127,15 @@ namespace Serilog
             string connectionProtocol = "https",
             int? timeToLive = null,
             int logBufferSize = 25_000,
-            int batchSize = 100)
+            int batchSize = 100,
+            LoggingLevelSwitch levelSwitch = null)
         {
-            if (loggerConfiguration == null) throw new ArgumentNullException(nameof(loggerConfiguration));
-            if (string.IsNullOrWhiteSpace(endpointUrl)) throw new ArgumentNullException(nameof(endpointUrl));
-            if (authorizationKey == null) throw new ArgumentNullException(nameof(authorizationKey));
+            if (loggerConfiguration == null)
+                throw new ArgumentNullException(nameof(loggerConfiguration));
+            if (string.IsNullOrWhiteSpace(endpointUrl))
+                throw new ArgumentNullException(nameof(endpointUrl));
+            if (authorizationKey == null)
+                throw new ArgumentNullException(nameof(authorizationKey));
             if ((timeToLive != null) && (timeToLive.Value > TimeSpan.FromDays(24_855).TotalSeconds))
                 throw new ArgumentOutOfRangeException(nameof(timeToLive));
 
@@ -139,7 +155,8 @@ namespace Serilog
                     timeSpan,
                     logBufferSize,
                     batchSize),
-                restrictedToMinimumLevel);
+                restrictedToMinimumLevel,
+                levelSwitch);
         }
     }
 }
