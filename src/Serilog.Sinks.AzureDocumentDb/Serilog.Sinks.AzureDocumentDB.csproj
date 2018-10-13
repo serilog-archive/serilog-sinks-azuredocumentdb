@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <TargetFrameworks>net45;netstandard1.6;netstandard2.0;netcoreapp2.1</TargetFrameworks>
+        <TargetFrameworks>net45;netstandard1.5;netstandard2.0;netcoreapp2.1</TargetFrameworks>
         <AssemblyName>Serilog.Sinks.AzureDocumentDB</AssemblyName>
         <RootNamespace>Serilog.Sinks.AzureDocumentDB</RootNamespace>
         <Authors>Serilog Contributors</Authors>
@@ -10,8 +10,8 @@
         <AppxAutoIncrementPackageRevision>True</AppxAutoIncrementPackageRevision>
         <SignAssembly>True</SignAssembly>
         <AssemblyOriginatorKeyFile>Serilog.snk</AssemblyOriginatorKeyFile>
-        <AssemblyVersion>3.9.0.0</AssemblyVersion>
-        <Version>3.9.0</Version>
+        <AssemblyVersion>4.0.0.0</AssemblyVersion>
+        <Version>4.0.0</Version>
         <GeneratePackageOnBuild>False</GeneratePackageOnBuild>
         <PackageTags>serilog;sinks;azure;documentdb</PackageTags>
         <PackageIconUrl>http://serilog.net/images/serilog-sink-nuget.png</PackageIconUrl>
@@ -36,12 +36,12 @@
     <ItemGroup Condition="'$(TargetFramework)' == 'net45'">
         <Reference Include="System" />
         <Reference Include="Microsoft.CSharp" />
-        <PackageReference Include="Microsoft.Azure.DocumentDB" Version="2.0.0" />
+        <PackageReference Include="Microsoft.Azure.DocumentDB" Version="2.1.2" />
     </ItemGroup>
 
-    <ItemGroup Condition="'$(TargetFramework)' == 'netstandard1.6' OR '$(TargetFramework)' == 'netstandard2.0' OR '$(TargetFramework)' == 'netcoreapp2.1'">
+    <ItemGroup Condition="'$(TargetFramework)' == 'netstandard1.5' OR '$(TargetFramework)' == 'netstandard2.0' OR '$(TargetFramework)' == 'netcoreapp2.1'">
         <PackageReference Include="Microsoft.CSharp" Version="4.5.0" />
-        <PackageReference Include="Microsoft.Azure.DocumentDB.Core" Version="2.0.0" />
+        <PackageReference Include="Microsoft.Azure.DocumentDB.Core" Version="2.1.2" />
     </ItemGroup>
 
     <ItemGroup>
