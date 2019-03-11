@@ -1,4 +1,4 @@
-﻿// Copyright 2018 Zethian Inc.
+﻿// Copyright 2019 Zethian Inc.
 // 
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -57,40 +57,40 @@ namespace Serilog.Sinks.Batch
             _batchEventsCollection = new BlockingCollection<IList<LogEvent>>();
             _eventsCollection      = new BlockingCollection<LogEvent>(maxBufferSize);
 
-            _batchTask     = Task.Factory.StartNew(Pump, TaskCreationOptions.LongRunning);
             _timerTask     = Task.Factory.StartNew(TimerPump, TaskCreationOptions.LongRunning);
             _eventPumpTask = Task.Factory.StartNew(EventPump, TaskCreationOptions.LongRunning);
-        }
+            
+            _batchTask = Task.Run(
+                async () =>
+                {
+                    try {
+                        while (true) {
+                            var logEvents = _batchEventsCollection.Take(_cancellationTokenSource.Token);
+                            SelfLog.WriteLine($"Sending batch of {logEvents.Count} logs");
 
-        private async Task Pump()
-        {
-            try {
-                while (true) {
-                    var logEvents = _batchEventsCollection.Take(_cancellationTokenSource.Token);
-                    SelfLog.WriteLine($"Sending batch of {logEvents.Count} logs");
-                    var retValue = await WriteLogEventAsync(logEvents).ConfigureAwait(false);
-                    if (retValue) {
-                        Interlocked.Add(ref _numMessages, -1 * logEvents.Count);
+                            var retValue = await WriteLogEventAsync(logEvents);
+                            if (retValue) {
+                                Interlocked.Add(ref _numMessages, -1 * logEvents.Count);
+                            }
+                            else {
+                                SelfLog.WriteLine($"Retrying after {_transientThresholdSpan.TotalSeconds} seconds...");
+
+                                await Task.Delay(_transientThresholdSpan);
+                                _batchEventsCollection.Add(logEvents);
+                            }
+
+                            if (_cancellationTokenSource.IsCancellationRequested) {
+                                _cancellationTokenSource.Token.ThrowIfCancellationRequested();
+                            }
+                        }
                     }
-                    else {
-                        SelfLog.WriteLine($"Retrying after {_transientThresholdSpan.TotalSeconds} seconds...");
-
-                        await Task.Delay(_transientThresholdSpan).ConfigureAwait(false);
-
-                        _batchEventsCollection.Add(logEvents);
+                    catch (OperationCanceledException) {
+                        SelfLog.WriteLine("Shutting down batch processing");
                     }
-
-                    if (_cancellationTokenSource.IsCancellationRequested) {
-                        _cancellationTokenSource.Token.ThrowIfCancellationRequested();
+                    catch (Exception e) {
+                        SelfLog.WriteLine(e.Message);
                     }
-                }
-            }
-            catch (OperationCanceledException) {
-                SelfLog.WriteLine("Shutting down batch processing");
-            }
-            catch (Exception e) {
-                SelfLog.WriteLine(e.Message);
-            }
+                });
         }
 
         private void TimerPump()
