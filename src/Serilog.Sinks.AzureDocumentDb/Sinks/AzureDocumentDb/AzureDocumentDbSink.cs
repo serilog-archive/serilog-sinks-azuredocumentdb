@@ -20,8 +20,9 @@ using System.Net;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Azure.Documents;
-using Microsoft.Azure.Documents.Client;
+using Microsoft.Azure.Cosmos;
+using Microsoft.Azure.Cosmos.Fluent;
+using Microsoft.Azure.Cosmos.Scripts;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 using Serilog.Core;
@@ -35,23 +36,25 @@ namespace Serilog.Sinks.AzureDocumentDb
     internal class AzureDocumentDBSink : BatchProvider, ILogEventSink
     {
         private const string BulkStoredProcedureId = "BulkImport";
-        private readonly DocumentClient _client;
+        private readonly CosmosClient _client;
         private readonly IFormatProvider _formatProvider;
         private readonly bool _storeTimestampInUtc;
         private readonly int? _timeToLive;
-        private string _bulkStoredProcedureLink;
-        private DocumentCollection _collection;
+        //private Colle _collection;
         private Database _database;
+        private Container _container;
         private readonly SemaphoreSlim _semaphoreSlim;
+        private string _partiotionKey = "id";
 
         public AzureDocumentDBSink(
-            Uri endpointUri,
+            string endpointUri,
             string authorizationKey,
             string databaseName,
             string collectionName,
+            string partitionKey,
             IFormatProvider formatProvider,
             bool storeTimestampInUtc,
-            Protocol connectionProtocol,
+            //Protocol connectionProtocol,
             TimeSpan? timeToLive,
             int logBufferSize = 25_000,
             int batchSize = 100) : base(batchSize, logBufferSize)
@@ -61,22 +64,15 @@ namespace Serilog.Sinks.AzureDocumentDb
             if ((timeToLive != null) && (timeToLive.Value != TimeSpan.MaxValue))
                 _timeToLive = (int) timeToLive.Value.TotalSeconds;
 
-            _client = new DocumentClient(
-                endpointUri,
-                authorizationKey,
-                new ConnectionPolicy
-                {
-                    ConnectionMode =
-                        connectionProtocol == Protocol.Https ? ConnectionMode.Gateway : ConnectionMode.Direct,
-                    ConnectionProtocol = connectionProtocol,
-                    MaxConnectionLimit = Environment.ProcessorCount * 50 + 200
-                });
+            _client = new CosmosClientBuilder(endpointUri, authorizationKey)
+                //.WithApplicationRegion(Regions.WestEurope)
+                .WithConnectionModeGateway()
+                .Build();
 
             _storeTimestampInUtc = storeTimestampInUtc;
             _semaphoreSlim       = new SemaphoreSlim(1, 1);
 
-            CreateDatabaseIfNotExistsAsync(databaseName).Wait();
-            CreateCollectionIfNotExistsAsync(collectionName).Wait();
+            CreateDatabaseAndContainerIfNotExistsAsync(databaseName, collectionName, partitionKey).Wait();
 
             JsonConvert.DefaultSettings = () =>
                                           {
@@ -90,32 +86,20 @@ namespace Serilog.Sinks.AzureDocumentDb
                                           };
         }
 
-        private async Task CreateDatabaseIfNotExistsAsync(string databaseName)
+        private async Task CreateDatabaseAndContainerIfNotExistsAsync(string databaseName, string containerName, string partitionKey)
         {
             SelfLog.WriteLine($"Opening database {databaseName}");
-            await _client.OpenAsync().ConfigureAwait(false);
-            _database = _client.CreateDatabaseQuery().Where(x => x.Id == databaseName).AsEnumerable().FirstOrDefault()
-             ?? await _client.CreateDatabaseAsync(new Database {Id = databaseName}).ConfigureAwait(false);
-        }
-
-        private async Task CreateCollectionIfNotExistsAsync(string collectionName)
-        {
-            SelfLog.WriteLine($"Creating collection: {collectionName}");
-            _collection = _client.CreateDocumentCollectionQuery(_database.SelfLink)
-                                 .Where(x => x.Id == collectionName)
-                                 .AsEnumerable()
-                                 .FirstOrDefault();
-            if (_collection == null) {
-                var documentCollection = new DocumentCollection {Id = collectionName, DefaultTimeToLive = -1};
-                _collection = await _client.CreateDocumentCollectionAsync(_database.SelfLink, documentCollection)
-                                           .ConfigureAwait(false);
-            }
-
-            _collectionLink = _collection.SelfLink;
+            _database = (await _client.CreateDatabaseIfNotExistsAsync(databaseName)).Database;
+            _container = (await _database.DefineContainer(containerName, $"/{partitionKey}")
+                // Define indexing policy with included and excluded paths
+                // Define time to live (TTL) in seconds on container
+                .WithDefaultTimeToLive(-1)
+                .CreateAsync())
+                .Container;
             await CreateBulkImportStoredProcedureAsync(_client).ConfigureAwait(false);
         }
 
-        private async Task CreateBulkImportStoredProcedureAsync(IDocumentClient client, bool dropExistingProc = false)
+        private async Task CreateBulkImportStoredProcedureAsync(CosmosClient client, bool dropExistingProc = false)
         {
             var currentAssembly = typeof(AzureDocumentDBSink).GetTypeInfo().Assembly;
 
@@ -123,45 +107,54 @@ namespace Serilog.Sinks.AzureDocumentDb
             var resourceName = currentAssembly.GetManifestResourceNames()
                                               .FirstOrDefault(w => w.EndsWith("bulkImport.js"));
 
-            if (string.IsNullOrEmpty(resourceName)) {
+            if (string.IsNullOrEmpty(resourceName))
+            {
                 SelfLog.WriteLine("Unable to find required resource.");
 
                 return;
             }
 
-            using (var resourceStream = currentAssembly.GetManifestResourceStream(resourceName)) {
-                if (resourceStream != null) {
+            using (var resourceStream = currentAssembly.GetManifestResourceStream(resourceName))
+            {
+                if (resourceStream != null)
+                {
                     var reader = new StreamReader(resourceStream);
                     var bulkImportSrc = await reader.ReadToEndAsync().ConfigureAwait(false);
-                    try {
-                        var sp = new StoredProcedure {Id = BulkStoredProcedureId, Body = bulkImportSrc};
+                    try
+                    {
+                        var sproc = await _container.Scripts.CreateStoredProcedureAsync(new StoredProcedureProperties()
+                        {
+                            Id = BulkStoredProcedureId,
+                            Body = bulkImportSrc,
+                        });
 
-                        var sproc = GetStoredProcedure(_collectionLink, sp.Id);
+                        //var sproc = GetStoredProcedure(_collectionLink, sp.Id);
 
-                        if ((sproc != null) && dropExistingProc) {
-                            await client.DeleteStoredProcedureAsync(sproc.SelfLink).ConfigureAwait(false);
-                            sproc = null;
-                        }
+                        //if ((sproc != null) && dropExistingProc)
+                        //{
+                        //    await client.DeleteStoredProcedureAsync(sproc.SelfLink).ConfigureAwait(false);
+                        //    sproc = null;
+                        //}
 
-                        if (sproc == null)
-                            sproc = await client.CreateStoredProcedureAsync(_collectionLink, sp).ConfigureAwait(false);
+                        //if (sproc == null)
+                        //    sproc = await client.CreateStoredProcedureAsync(_collectionLink, sp).ConfigureAwait(false);
 
-                        _bulkStoredProcedureLink = sproc.SelfLink;
                     }
-                    catch (Exception ex) {
+                    catch (Exception ex)
+                    {
                         SelfLog.WriteLine(ex.Message);
                     }
                 }
             }
         }
 
-        private StoredProcedure GetStoredProcedure(string collectionLink, string id)
-        {
-            return _client.CreateStoredProcedureQuery(collectionLink)
-                          .Where(s => s.Id == id)
-                          .AsEnumerable()
-                          .FirstOrDefault();
-        }
+        //private StoredProcedure GetStoredProcedure(string collectionLink, string id)
+        //{
+        //    return _client.CreateStoredProcedureQuery(collectionLink)
+        //                  .Where(s => s.Id == id)
+        //                  .AsEnumerable()
+        //                  .FirstOrDefault();
+        //}
 
         #region Parallel Log Processing Support
 
@@ -184,9 +177,11 @@ namespace Serilog.Sinks.AzureDocumentDb
             await _semaphoreSlim.WaitAsync().ConfigureAwait(false);
             try {
                 SelfLog.WriteLine($"Sending batch of {logEventsBatch.Count} messages to DocumentDB");
-                var storedProcedureResponse = await _client
-                                                   .ExecuteStoredProcedureAsync<int>(_bulkStoredProcedureLink, args)
-                                                   .ConfigureAwait(false);
+                var storedProcedureResponse = await _container.Scripts.ExecuteStoredProcedureAsync<dynamic>(
+                storedProcedureId: BulkStoredProcedureId, // your stored procedure name
+                partitionKey: new PartitionKey(_partiotionKey),
+                parameters: args.ToArray());
+
                 SelfLog.WriteLine(storedProcedureResponse.StatusCode.ToString());
 
                 return storedProcedureResponse.StatusCode == HttpStatusCode.OK;
@@ -194,10 +189,10 @@ namespace Serilog.Sinks.AzureDocumentDb
             catch (AggregateException e) {
                 SelfLog.WriteLine($"ERROR: {(e.InnerException ?? e).Message}");
 
-                var exception = e.InnerException as DocumentClientException;
+                var exception = e.InnerException as CosmosException;
                 if (exception != null) {
                     if (exception.StatusCode == null) {
-                        var ei = (DocumentClientException) e.InnerException;
+                        var ei = (CosmosException) e.InnerException;
                         if (ei?.StatusCode != null) {
                             exception = ei;
                         }
@@ -209,7 +204,7 @@ namespace Serilog.Sinks.AzureDocumentDb
 
                 switch ((int) exception.StatusCode) {
                     case 429:
-                        var delayTask = Task.Delay(TimeSpan.FromMilliseconds(exception.RetryAfter.Milliseconds + 10));
+                        var delayTask = Task.Delay(TimeSpan.FromMilliseconds(exception.RetryAfter.Value.Milliseconds + 10));
                         delayTask.Wait();
 
                         break;

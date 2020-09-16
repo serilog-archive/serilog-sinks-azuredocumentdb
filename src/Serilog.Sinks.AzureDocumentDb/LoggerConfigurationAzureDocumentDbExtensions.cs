@@ -13,7 +13,6 @@
 // limitations under the License.
 
 using System;
-using Microsoft.Azure.Documents.Client;
 using Serilog.Configuration;
 using Serilog.Core;
 using Serilog.Events;
@@ -54,14 +53,15 @@ namespace Serilog
         /// <exception cref="ArgumentOutOfRangeException">A required parameter value is out of acceptable range.</exception>
         public static LoggerConfiguration AzureDocumentDB(
             this LoggerSinkConfiguration loggerConfiguration,
-            Uri endpointUri,
+            string endpointUri,
             string authorizationKey,
             string databaseName = "Diagnostics",
             string collectionName = "Logs",
+            string partitionKey = "id",
             LogEventLevel restrictedToMinimumLevel = LevelAlias.Minimum,
             IFormatProvider formatProvider = null,
             bool storeTimestampInUtc = true,
-            Protocol connectionProtocol = Protocol.Https,
+            //Protocol connectionProtocol = Protocol.Https,
             TimeSpan? timeToLive = null,
             int logBufferSize = 25_000,
             int batchSize = 100,
@@ -82,9 +82,10 @@ namespace Serilog
                     authorizationKey,
                     databaseName,
                     collectionName,
+                    partitionKey,
                     formatProvider,
                     storeTimestampInUtc,
-                    connectionProtocol,
+                    //connectionProtocol,
                     timeToLive,
                     logBufferSize,
                     batchSize),
@@ -121,6 +122,7 @@ namespace Serilog
             string authorizationKey,
             string databaseName = "Diagnostics",
             string collectionName = "Logs",
+            string partitionKey = "id",
             LogEventLevel restrictedToMinimumLevel = LevelAlias.Minimum,
             IFormatProvider formatProvider = null,
             bool storeTimestampInUtc = false,
@@ -145,13 +147,13 @@ namespace Serilog
 
             return loggerConfiguration.Sink(
                 new AzureDocumentDBSink(
-                    new Uri(endpointUrl),
+                    endpointUrl,
                     authorizationKey,
                     databaseName,
                     collectionName,
+                    partitionKey,
                     formatProvider,
                     storeTimestampInUtc,
-                    connectionProtocol?.ToUpper() == "TCP" ? Protocol.Tcp : Protocol.Https,
                     timeSpan,
                     logBufferSize,
                     batchSize),
